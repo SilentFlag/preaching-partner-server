@@ -8,6 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 
 mod datatypes;
+use datatypes::{ClientMessage, ClientPayload, ServerPayload, ServerMessage};
 
 #[tokio::main]
 async fn main() {
@@ -69,28 +70,33 @@ async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sqlx::S
             Message::Binary(bin) => {
                 println!("Received binary message: {:?}", bin);
                 // Handle binary messages if needed
-                let decoded: datatypes::ClientMessage = rmp_serde::from_slice(&bin).unwrap();
+                let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
+                let id: u32 = decoded.id;
 
-                match decoded {
-                    datatypes::ClientMessage::Login {name, password} => {
+                match decoded.payload {
+                    ClientPayload::Login {name, password} => {
                         let query = format!("SELECT * FROM users WHERE firstname = \"{}\" AND password = \"{}\"", name, password);
                         let rows = sqlx::query(&query).execute(&db).await;
                         println!("{:?} with query {:?}", rows, query);
-                    },
-                    datatypes::ClientMessage::UpdateCheckbox {..} => {
+
+                        let confirm_message = ServerMessage {
+                            id: id,
+                            payload: ServerPayload::Confirm(true),
+                        };
+                        let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
+                        let _ = write.send(tokio_tungstenite::tungstenite::Message::binary(message_bytes)).await;
 
                     },
-                    datatypes::ClientMessage::UpdateCheckboxDetails {..} => {
+                    ClientPayload::UpdateCheckbox {..} => {
 
                     },
-                    datatypes::ClientMessage::SetLowDataMode(..) => {
+                    ClientPayload::UpdateCheckboxDetails {..} => {
+
+                    },
+                    ClientPayload::SetLowDataMode(..) => {
 
                     }
                 }
-
-                let confirm_message = datatypes::ServerMessage::Confirm(true);
-                let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
-                let _ = write.send(tokio_tungstenite::tungstenite::Message::binary(message_bytes)).await;
             }
             Message::Close(_) => {
                 println!("Client disconnected");
