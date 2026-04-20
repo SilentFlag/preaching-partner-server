@@ -1,5 +1,4 @@
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-// use sqlx::{Row, Column};
 use futures_util::{SinkExt, StreamExt};
 
 
@@ -7,8 +6,10 @@ pub mod datatypes;
 use crate::datatypes::{ClientMessage, ClientPayload, ServerPayload, ServerMessage};
 
 mod account;
-use account::login;
+use account::{login, roll_refresh_token, roll_access_token};
 
+
+/// Core function accepting a user attempting to connect to the server
 pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sqlx::Sqlite>) {
     let ws_stream = accept_async(stream)
         .await
@@ -27,6 +28,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
     // Handle incoming requests
 
     while let Some(msg) = read.next().await {
+        // TODO: handle corrupt messages
         let msg = msg.unwrap();
         match msg {
             Message::Text(..) => {
@@ -39,28 +41,22 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
 
                 match decoded.payload {
                     ClientPayload::Login {name, password} => {
-                        println!("{} {}", name, password);
-                        let login_attempt = login(name, password, &db).await;
-
-                        if let Ok(login_success) = login_attempt {
-                            let confirm_message = ServerMessage {
-                                id: id,
-                                payload: ServerPayload::Confirm(login_success),
-                            };
-                            let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
-                            let _ = write.send(tokio_tungstenite::tungstenite::Message::binary(message_bytes)).await;
-                        } else {
-                            // TODO: log and inform user of error
-                            let confirm_message = ServerMessage {
-                                id: id,
-                                payload: ServerPayload::Confirm(false),
-                            };
-                            let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
-                            let _ = write.send(tokio_tungstenite::tungstenite::Message::binary(message_bytes)).await;
-                        }
-
-                        // TODO: Create refresh and access tokens
+                        let login_attempt = login(name, password, &db).await; // TODO: login returns userid in Ok()
+                        let (success, refresh_token, access_token) = match login_attempt {
+                            Ok(result) => { 
+                                let refresh_token = roll_refresh_token(result, &db).await;
+                                let access_token = roll_access_token(refresh_token, &db).await;
+                                (true, Some(refresh_token), access_token) 
+                            },
+                            Err(_) => { (false, None, None) }
+                        };
                         
+                        let confirm_message = ServerMessage {
+                            id: id,
+                            payload: ServerPayload::ConfirmLogin{success, refresh_token, access_token},
+                        };
+                        let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
+                        let _ = write.send(tokio_tungstenite::tungstenite::Message::binary(message_bytes)).await;
 
                     },
                     ClientPayload::UpdateCheckbox {..} => {

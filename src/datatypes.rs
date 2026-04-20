@@ -23,7 +23,8 @@ pub struct ServerMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServerPayload {
-    Confirm (bool)
+    Confirm (bool),
+    ConfirmLogin {success: bool, refresh_token: Option<[u8; 32]>, access_token: Option<[u8; 32]>}
 }
 
 // pub struct WsState {
