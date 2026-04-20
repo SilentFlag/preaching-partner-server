@@ -1,7 +1,7 @@
 use std::{str::FromStr};
 use tokio::net::TcpListener;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
-use ministry_manager_server::handle_connection;
+use preaching_partner_server::handle_connection;
 
 #[tokio::main]
 async fn main() {

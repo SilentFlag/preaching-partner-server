@@ -28,7 +28,7 @@ pub async fn login(name: String, password: String, db: &sqlx::Pool<sqlx::Sqlite>
 /// If something is unsuccessful Err(false) is returned
 /// 
 /// TODO: Update return values to have errors relating to each possible error
-pub async fn logout(refresh_token: [u8; 32], db: &sqlx::Pool<sqlx::Sqlite>) -> Result<bool,bool> {
+pub async fn _logout(refresh_token: [u8; 32], db: &sqlx::Pool<sqlx::Sqlite>) -> Result<bool,bool> {
 
     // get user id of token
     let mut user_id: u32 = 0;
@@ -145,7 +145,7 @@ pub async fn roll_access_token(refresh_token: [u8; 32], db: &sqlx::Pool<sqlx::Sq
 }
 
 /// Remove all tokens associated with a given user in the database
-pub async fn revoke_tokens(user: u32, db: &sqlx::Pool<sqlx::Sqlite>) -> Result<bool, bool> {
+pub async fn _revoke_tokens(user: u32, db: &sqlx::Pool<sqlx::Sqlite>) -> Result<bool, bool> {
     let insert_token_query = sqlx::query("DELETE FROM tokens WHERE user = ?")
         .bind(&user);
 
