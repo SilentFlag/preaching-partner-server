@@ -109,7 +109,6 @@ pub async fn roll_access_token(refresh_token: [u8; 32], db: &sqlx::Pool<sqlx::Sq
     let mut buf = [0u8; 32];
     let _ = rng.try_fill_bytes(&mut buf); // TODO: handle fail of filling bytes
 
-    // TODO: get user id of refresh token
     let mut user_id: u32 = 0;
     let get_user_id_query = sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = true)")
         .bind(hex::encode(&refresh_token));
@@ -130,6 +129,7 @@ pub async fn roll_access_token(refresh_token: [u8; 32], db: &sqlx::Pool<sqlx::Sq
     let token_hash = hasher.finalize();
 
     let insert_token_query = sqlx::query("INSERT INTO tokens(user, refresh, token) VALUES (?, ?, ?)")
+        // TODO: Something wrong with user id so foreign key constraint fails?
         .bind(&user_id)
         .bind(false)
         .bind(hex::encode(token_hash));
