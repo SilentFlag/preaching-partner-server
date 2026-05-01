@@ -8,7 +8,6 @@ use hex;
 /// If they are valid, the user id of the user is returned, Ok(id)
 /// If they are invalid, Err(false) is returned
 pub async fn login(name: String, password: String, db: &sqlx::Pool<sqlx::Sqlite>) -> Result<u32, bool> {
-    println!("{} {}", name, password);
     // TODO: Hash password to match a hash in the database
     let query = sqlx::query("SELECT * FROM users WHERE firstname = ? AND password = ?")
         .bind(&name)

@@ -12,19 +12,22 @@ pub enum ClientPayload {
     Login {name: String, password: String},
     UpdateCheckbox {map: i32, id: i32, checked: bool},
     UpdateCheckboxDetails {map: i32, id: i32, name: String},
-    SetLowDataMode (bool)
+    SetLowDataMode (bool),
+    RequestSync(u64)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerMessage {
     pub id: u32,
+    pub timestamp: u64,
     pub payload: ServerPayload,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServerPayload {
     Confirm (bool),
-    ConfirmLogin {success: bool, refresh_token: Option<[u8; 32]>, access_token: Option<[u8; 32]>}
+    ConfirmLogin {success: bool, refresh_token: Option<[u8; 32]>, access_token: Option<[u8; 32]>},
+    MapImage(Vec<u8>),
 }
 
 // pub struct WsState {
