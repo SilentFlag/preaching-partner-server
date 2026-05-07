@@ -74,7 +74,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
                     ClientPayload::UpdateCheckbox { .. } => {}
                     ClientPayload::UpdateCheckboxDetails { .. } => {}
                     ClientPayload::RequestSync(time) => {
-                        sync::sync_user(&mut write, time, id).await;
+                        sync::sync_user(&db, &mut write, time, id).await;
                     }
                     ClientPayload::SetLowDataMode(..) => {}
                 }
