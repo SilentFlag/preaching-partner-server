@@ -31,21 +31,19 @@ pub enum ServerPayload {
         refresh_token: Option<[u8; 32]>,
         access_token: Option<[u8; 32]>,
     },
-    MapImage(String, Vec<u8>),
+    MapImage {
+        image_name: String,
+        image: Vec<u8>,
+        assignee: u32,
+        assigner: u32,
+        category: u32,
+    },
     SyncComplete,
 }
 
-// pub struct WsState {
-//     pub request_tx: mpsc::Sender<WsRequest>,
-//     pub event_tx: broadcast::Sender<WsEvent>,
-// }
-
-// pub struct WsRequest {
-//     pub payload: String,
-//     pub response_tx: oneshot::Sender<String>,
-// }
-
-// #[derive(Clone, Debug)]
-// pub struct WsEvent {
-//     pub payload: String,
-// }
+pub struct MapDetails {
+    pub image_name: String,
+    pub assignee: u32,
+    pub assigner: u32,
+    pub category: u32,
+}

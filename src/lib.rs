@@ -36,6 +36,8 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
             }
             Message::Binary(bin) => {
                 // Handle binary messages if needed
+
+                // TODO: Confirm the token sent with the message
                 let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
                 let id: u32 = decoded.id;
 
