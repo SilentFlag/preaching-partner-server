@@ -1,4 +1,4 @@
-use crate::datatypes::{MapDetails, ServerMessage, ServerPayload};
+use crate::datatypes::{CongDetails, MapDetails, ServerMessage, ServerPayload};
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
 use sqlx::Row;
@@ -23,8 +23,18 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
     match sync_vector {
         Ok(sync_vec) => {
             // TODO: Sync map dependencies first (categories, users, congregation)
-
-            let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
+            let congregations = get_congregations(id, db).await;
+            match congregations {
+                Ok(congregations) => {
+                    let _sync_congregations_result =
+                        sync_congregations(id, last_sync, congregations, write, db).await;
+                    let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
+                }
+                Err(_) => {
+                    // TODO: Handle this error
+                    println!("An error occured");
+                }
+            }
         }
         Err(_) => {
             //TODO: Something
@@ -33,6 +43,79 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
     }
 }
 
+/// Sync the clients database of congregations as they are in with the database on the server
+///
+/// Parameters:
+///     user_id: Id of the user as found in the users table
+///     last_sync: Timestamp of the last time the client has synced their congregations
+///     congregations: Vector of all congregations linked to that person as found in the user_cong_pair table
+///     write: Mutable WsSink reference for the function to send messsages to the client
+///     db: Reference to the database to be able to delete any records as necessary
+///
+/// Return Value:
+///     Ok(()) is returned when the function is successful.
+///     Err(sqlx::Error) is returned when there is a problem with the database
+///
+/// TODO: Handle error of a failure to delete a record from the database, Potentially leave it and have the get_congregations function handle it, when there is a congregation with an old updated timestamp but with deleted as true.
+/// TODO: Update congregation vector and return that also
+async fn sync_congregations(
+    user_id: u32,
+    last_sync: u64,
+    congregations: Vec<CongDetails>,
+    write: &mut WsSink,
+    db: &sqlx::Pool<sqlx::Sqlite>,
+) -> Result<(), sqlx::Error> {
+    for cong in congregations {
+        if cong.updated > last_sync {
+            let payload = ServerPayload::SyncCong {
+                cong_id: cong.cong_id,
+                remove: cong.remove,
+            };
+            let message = ServerMessage {
+                id: 0,
+                timestamp: cong.timestamp,
+                payload,
+            };
+            // Send message
+            let message_bytes = rmp_serde::to_vec(&message).unwrap();
+            let _ = write
+                .send(tokio_tungstenite::tungstenite::Message::binary(
+                    message_bytes,
+                ))
+                .await;
+
+            if cong.remove == true {
+                let update_query = sqlx::query(
+                    "DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?",
+                )
+                .bind(&user_id)
+                .bind(cong.cong_id);
+
+                let rows_result = update_query.execute(db).await;
+                if let Err(error) = rows_result {
+                    // TODO: handle this error
+                    println!("Something went wrong");
+                    return Err(error);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Sync the clients database of maps and images of maps to match the server
+///
+/// Parameter:
+///     sync_vec:
+///     id:
+///     write: Mutable WsSink reference for the function to send messsages to the client
+///     db: Reference to the database to be able to delete any records as necessary
+///
+/// Return Value:
+///     Ok(()) is returned when the function is successful.
+///     Err(sqlx::Error) is returned when there is a problem with the database
+///
+/// TODO: Update to get maps only for the persons congregation, add congregation vector
 async fn sync_maps(
     sync_vec: Vec<u8>,
     id: u32,
@@ -63,7 +146,7 @@ async fn sync_maps(
                                 .expect("Time went backwards")
                                 .as_millis() as u64;
                             let image_message = ServerMessage {
-                                id,
+                                id: 0,
                                 timestamp: current_time,
                                 payload: ServerPayload::MapImage {
                                     image_name: map_details.image_name,
@@ -118,4 +201,40 @@ async fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
         assigner,
         category,
     })
+}
+
+async fn get_congregations(
+    user_id: u32,
+    db: &sqlx::Pool<sqlx::Sqlite>,
+) -> Result<Vec<CongDetails>, sqlx::Error> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis() as u64;
+
+    let query = sqlx::query(
+        "SELECT congregation_id, deleted, updated FROM user_cong_pair WHERE user_id = ?",
+    )
+    .bind(&user_id);
+
+    let rows_result = query.fetch_all(db).await;
+
+    let mut congregations: Vec<CongDetails> = vec![];
+
+    if let Ok(rows) = rows_result {
+        for row in rows {
+            // TODO: add last change timestamp?
+            let cong_id: u32 = row.try_get("congregation_id")?;
+            let remove: bool = row.try_get("deleted")?;
+            let updated: u64 = 0;
+            congregations.push(CongDetails {
+                cong_id,
+                timestamp,
+                remove,
+                updated,
+            });
+        }
+    }
+
+    Ok(congregations)
 }

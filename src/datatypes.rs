@@ -38,12 +38,24 @@ pub enum ServerPayload {
         assigner: u32,
         category: u32,
     },
+    SyncCong {
+        cong_id: u32,
+        remove: bool,
+    },
     SyncComplete,
 }
 
+// The following structs are for syncing
 pub struct MapDetails {
     pub image_name: String,
     pub assignee: u32,
     pub assigner: u32,
     pub category: u32,
+}
+
+pub struct CongDetails {
+    pub cong_id: u32,
+    pub timestamp: u64,
+    pub remove: bool,
+    pub updated: u64,
 }
