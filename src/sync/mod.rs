@@ -28,7 +28,14 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
                 Ok(congregations) => {
                     let _sync_congregations_result =
                         sync_congregations(id, last_sync, congregations, write, db).await;
-                    let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
+
+                    // TODO: Sync all tables
+                    // Categories
+                    // Service_Group
+                    // Users
+
+                    // TODO: Uncomment this when all dependent tables have been implemented
+                    // let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
                 }
                 Err(_) => {
                     // TODO: Handle this error
@@ -56,6 +63,8 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
 ///     Ok(()) is returned when the function is successful.
 ///     Err(sqlx::Error) is returned when there is a problem with the database
 ///
+/// TODO: This only handles the user_cong_pair table, it should also sync the congregation table where relevent !important
+///
 /// TODO: Handle error of a failure to delete a record from the database, Potentially leave it and have the get_congregations function handle it, when there is a congregation with an old updated timestamp but with deleted as true.
 /// TODO: Update congregation vector and return that also
 async fn sync_congregations(
@@ -69,6 +78,7 @@ async fn sync_congregations(
         if cong.updated > last_sync {
             let payload = ServerPayload::SyncCong {
                 cong_id: cong.cong_id,
+                cong_name: cong.cong_name,
                 remove: cong.remove,
             };
             let message = ServerMessage {
@@ -116,7 +126,7 @@ async fn sync_congregations(
 ///     Err(sqlx::Error) is returned when there is a problem with the database
 ///
 /// TODO: Update to get maps only for the persons congregation, add congregation vector
-async fn sync_maps(
+async fn _sync_maps(
     sync_vec: Vec<u8>,
     id: u32,
     write: &mut WsSink,
@@ -233,7 +243,7 @@ async fn get_congregations(
         .as_millis() as u64;
 
     let query = sqlx::query(
-        "SELECT congregation_id, deleted, updated FROM user_cong_pair WHERE user_id = ?",
+        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id",
     )
     .bind(&user_id);
 
@@ -245,10 +255,12 @@ async fn get_congregations(
         Ok(rows) => {
             for row in rows {
                 let cong_id: u32 = row.try_get("congregation_id")?;
+                let cong_name: String = row.try_get("name")?;
                 let remove: bool = row.try_get("deleted")?;
                 let updated: u64 = 0;
                 congregations.push(CongDetails {
                     cong_id,
+                    cong_name,
                     timestamp,
                     remove,
                     updated,

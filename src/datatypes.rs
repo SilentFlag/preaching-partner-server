@@ -40,6 +40,7 @@ pub enum ServerPayload {
     },
     SyncCong {
         cong_id: u32,
+        cong_name: String,
         remove: bool,
     },
     SyncComplete,
@@ -55,6 +56,7 @@ pub struct MapDetails {
 
 pub struct CongDetails {
     pub cong_id: u32,
+    pub cong_name: String,
     pub timestamp: u64,
     pub remove: bool,
     pub updated: u64,
