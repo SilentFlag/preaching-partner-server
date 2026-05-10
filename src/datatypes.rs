@@ -61,3 +61,11 @@ pub struct CongDetails {
     pub remove: bool,
     pub updated: u64,
 }
+
+pub struct CategoryDetails {
+    pub id: u32,
+    pub name: String,
+    pub prefix: String,
+    pub congregation: u32,
+    pub updated: u64,
+}

@@ -2,7 +2,7 @@
 
 CREATE TABLE congregation(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL);
 
-CREATE TABLE categories(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, prefix VARCHAR(255) NOT NULL, congregation INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id));
+CREATE TABLE categories(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, prefix VARCHAR(255) NOT NULL, congregation INTEGER, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id));
 
 CREATE TABLE service_group(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, congregation INTEGER, elder INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id), CONSTRAINT fk_elder FOREIGN KEY (elder) REFERENCES users(id));
 
