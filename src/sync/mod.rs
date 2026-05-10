@@ -63,7 +63,6 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
 ///     Ok(()) is returned when the function is successful.
 ///     Err(sqlx::Error) is returned when there is a problem with the database
 ///
-/// TODO: This only handles the user_cong_pair table, it should also sync the congregation table where relevent !important
 ///
 /// TODO: Handle error of a failure to delete a record from the database, Potentially leave it and have the get_congregations function handle it, when there is a congregation with an old updated timestamp but with deleted as true.
 /// TODO: Update congregation vector and return that also
