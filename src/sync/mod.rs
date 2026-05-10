@@ -190,6 +190,16 @@ async fn sync_maps(
     return Ok(());
 }
 
+/// Given a SqliteRow, return the details of the map
+///
+/// Parameter:
+///     row: A SqliteRow of the maps table
+///
+/// Return Value:
+///     Ok(MapDetails): Map details from row returned when successful
+///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
+///
+/// TODO: Put in the column names
 async fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
     let image_name: String = row.try_get("file_name")?;
     let assignee: u32 = row.try_get("")?;
@@ -203,6 +213,16 @@ async fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
     })
 }
 
+/// Get all congregations relevent to a particular user
+///
+/// Parameters:
+///     user_id: Id of the user as found in the users table
+///     db: Reference to the database
+///
+/// Return Value:
+///     Ok(Vec<CongDetails>): Returned when getting congregations is successful, vector of all relevent congregations
+///     Err(sqlx::Error): Returned when there is a problem with the database
+///
 async fn get_congregations(
     user_id: u32,
     db: &sqlx::Pool<sqlx::Sqlite>,
@@ -221,18 +241,22 @@ async fn get_congregations(
 
     let mut congregations: Vec<CongDetails> = vec![];
 
-    if let Ok(rows) = rows_result {
-        for row in rows {
-            // TODO: add last change timestamp?
-            let cong_id: u32 = row.try_get("congregation_id")?;
-            let remove: bool = row.try_get("deleted")?;
-            let updated: u64 = 0;
-            congregations.push(CongDetails {
-                cong_id,
-                timestamp,
-                remove,
-                updated,
-            });
+    match rows_result {
+        Ok(rows) => {
+            for row in rows {
+                let cong_id: u32 = row.try_get("congregation_id")?;
+                let remove: bool = row.try_get("deleted")?;
+                let updated: u64 = 0;
+                congregations.push(CongDetails {
+                    cong_id,
+                    timestamp,
+                    remove,
+                    updated,
+                });
+            }
+        }
+        Err(error) => {
+            return Err(error);
         }
     }
 
