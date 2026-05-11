@@ -69,3 +69,12 @@ pub struct CategoryDetails {
     pub congregation: u32,
     pub updated: u64,
 }
+
+pub struct GroupDetails {
+    pub id: u32,
+    pub name: String,
+    pub cong: u32,
+    pub elder: u32,
+    pub updated: u64,
+    pub deleted: bool,
+}

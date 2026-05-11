@@ -1,11 +1,13 @@
-use crate::datatypes::{CategoryDetails, CongDetails, MapDetails, ServerMessage, ServerPayload};
+use crate::datatypes::{
+    CategoryDetails, CongDetails, GroupDetails, MapDetails, ServerMessage, ServerPayload,
+};
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
 use sqlx::Row;
 use sqlx::sqlite::SqliteRow;
 use std::collections::HashSet;
-use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, vec};
 use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
@@ -27,12 +29,14 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
             match congregations {
                 Ok(congregations) => {
                     let _sync_congregations_result =
-                        sync_congregations(id, last_sync, congregations, write, db).await;
+                        sync_congregations(id, last_sync, &congregations, write, db).await;
 
-                    // TODO: Sync all tables
-                    // Categories
-                    // Service_Group
-                    // Users
+                    let _sync_categories_result =
+                        sync_categories(sync_vec, last_sync, &congregations, db).await;
+
+                    // let _sync_groups_result = sync_service_groups().await;
+
+                    // let _sync_users_result = sync_users().await;
 
                     // TODO: Uncomment this when all dependent tables have been implemented
                     // let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
@@ -69,7 +73,7 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
 async fn sync_congregations(
     user_id: u32,
     last_sync: u64,
-    congregations: Vec<CongDetails>,
+    congregations: &Vec<CongDetails>,
     write: &mut WsSink,
     db: &sqlx::Pool<sqlx::Sqlite>,
 ) -> Result<(), sqlx::Error> {
@@ -77,7 +81,7 @@ async fn sync_congregations(
         if cong.updated > last_sync {
             let payload = ServerPayload::SyncCong {
                 cong_id: cong.cong_id,
-                cong_name: cong.cong_name,
+                cong_name: cong.cong_name.clone(),
                 remove: cong.remove,
             };
             let message = ServerMessage {
@@ -180,7 +184,7 @@ async fn get_congregations(
 async fn sync_categories(
     last_sync_vec: Vec<u8>,
     last_sync: u64,
-    congregations: Vec<CongDetails>,
+    congregations: &Vec<CongDetails>,
     db: &sqlx::Pool<sqlx::Sqlite>,
 ) -> Result<(), sqlx::Error> {
     let get_maps_query =
@@ -218,6 +222,15 @@ async fn sync_categories(
     Ok(())
 }
 
+/// Given a SqliteRow, return the details of the category
+///
+/// Parameter:
+///     row: A SqliteRow of the categories table
+///
+/// Return Value:
+///     Ok(MapDetails): Category details from row returned when successful
+///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
+///
 async fn get_category_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Error> {
     let id = row.try_get("id")?;
     let name = row.try_get("name")?;
@@ -233,7 +246,81 @@ async fn get_category_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::E
     })
 }
 
-// TODO: functions to sync service_group and user tables
+/// TODO: Write this function
+async fn sync_service_groups(
+    user_id: u32,
+    last_sync: u64,
+    write: &mut WsSink,
+    db: &sqlx::Pool<sqlx::Sqlite>,
+) -> Result<(), sqlx::Error> {
+    Ok(())
+}
+
+// TODO: write docs
+async fn get_groups(
+    user_id: u32,
+    db: &sqlx::Pool<sqlx::Sqlite>,
+) -> Result<Vec<GroupDetails>, sqlx::Error> {
+    let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
+        .bind(&user_id);
+
+    let rows_result = query.fetch_all(db).await;
+
+    let mut groups: Vec<GroupDetails> = vec![];
+
+    match rows_result {
+        Ok(rows) => {
+            for row in rows {
+                let group_details = get_group_details(row).await;
+                match group_details {
+                    Ok(details) => {
+                        groups.push(details);
+                    }
+                    Err(_error) => {
+                        // TODO: handle error, don't return in case some groups are found?
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            return Err(error);
+        }
+    }
+
+    Ok(groups)
+}
+
+/// Given a SqliteRow of a groups details, return the formatted details
+///
+/// Query for rows: "SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?"
+///
+/// Parameters:
+///     row: SqliteRow of the group details
+///
+/// Return Value:
+///     Ok(GroupDetails): Function successful
+///     Err(sqlx::Error): Sqlx Error occured
+async fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
+    let id = row.try_get("group_id")?;
+    let name: String = row.try_get("name")?;
+    let cong: u32 = row.try_get("congregation")?;
+    let elder: u32 = row.try_get("elder")?;
+    let updated: u64 = row.try_get("updated")?;
+    let deleted: bool = row.try_get("delted")?;
+    Ok(GroupDetails {
+        id,
+        name,
+        cong,
+        elder,
+        updated,
+        deleted,
+    })
+}
+
+/// TODO: Write this function
+async fn sync_users() -> Result<(), sqlx::Error> {
+    Ok(())
+}
 
 /// Sync the client's database of maps and images of maps to match the server
 ///
