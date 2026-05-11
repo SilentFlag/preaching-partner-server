@@ -258,7 +258,6 @@ async fn get_category_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::E
 ///     Ok(()): Sync Successful
 ///     Err(sqlx::Error): Something went wrong
 ///
-/// TODO: delete unneeded records from database
 async fn sync_service_groups(
     user_id: u32,
     last_sync: u64,
@@ -271,10 +270,50 @@ async fn sync_service_groups(
             for group in groups {
                 if group.updated > last_sync {
                     if group.pair_deleted {
-                        // TODO: Delete pair from database
-                        if group.group_deleted {
-                            // TODO: Check database for any more instances of group pairs for this group, if not delete it
+                        // Delete record of user_group_pair
+                        let update_query = sqlx::query(
+                            "DELETE FROM user_group_pair WHERE user_id = ? AND group_id = ?",
+                        )
+                        .bind(&user_id)
+                        .bind(group.id);
+
+                        let rows_result = update_query.execute(db).await;
+                        if let Err(error) = rows_result {
+                            // TODO: handle this error
+                            println!("Something went wrong");
+                            return Err(error);
                         }
+
+                        // Check if record of group needs to be deleted
+                        if group.group_deleted {
+                            let query = sqlx::query(
+                                "SELECT user_id FROM user_group_pair WHERE group_id = ?",
+                            )
+                            .bind(group.id);
+
+                            let rows_result = query.fetch_all(db).await;
+
+                            match rows_result {
+                                Ok(rows) => {
+                                    if rows.len() == 0 {
+                                        let update_query =
+                                            sqlx::query("DELETE FROM service_group WHERE id = ?")
+                                                .bind(group.id);
+
+                                        let rows_result = update_query.execute(db).await;
+                                        if let Err(error) = rows_result {
+                                            // TODO: handle this error
+                                            println!("Something went wrong");
+                                            return Err(error);
+                                        }
+                                    }
+                                }
+                                Err(_error) => {
+                                    // TODO: handle this error
+                                }
+                            }
+                        }
+
                         // Send message to delete
                         let message = ServerPayload::SyncGroup {
                             id: group.id,
