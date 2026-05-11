@@ -43,6 +43,14 @@ pub enum ServerPayload {
         cong_name: String,
         remove: bool,
     },
+    SyncGroup {
+        id: u32,
+        name: String,
+        cong: u32,
+        elder: u32,
+        updated: u64,
+        deleted: bool,
+    },
     SyncComplete,
 }
 
@@ -76,5 +84,6 @@ pub struct GroupDetails {
     pub cong: u32,
     pub elder: u32,
     pub updated: u64,
-    pub deleted: bool,
+    pub group_deleted: bool,
+    pub pair_deleted: bool,
 }

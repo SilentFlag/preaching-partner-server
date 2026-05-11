@@ -246,13 +246,74 @@ async fn get_category_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::E
     })
 }
 
-/// TODO: Write this function
+/// Given a user_id and last sync time, sync the user with the database on the server
+///
+/// Parameters:
+///     user_id: Id of the user to update
+///     last_sync: Timestamp of the latest sync
+///     write: Mutable WsSink reference for the function to send messsages to the client
+///     db: Reference to the database to be able to delete any records as necessary
+///
+/// Return Value:
+///     Ok(()): Sync Successful
+///     Err(sqlx::Error): Something went wrong
+///
+/// TODO: delete unneeded records from database
 async fn sync_service_groups(
     user_id: u32,
     last_sync: u64,
     write: &mut WsSink,
     db: &sqlx::Pool<sqlx::Sqlite>,
 ) -> Result<(), sqlx::Error> {
+    let groups = get_groups(user_id, db).await;
+    match groups {
+        Ok(groups) => {
+            for group in groups {
+                if group.updated > last_sync {
+                    if group.pair_deleted {
+                        // TODO: Delete pair from database
+                        if group.group_deleted {
+                            // TODO: Check database for any more instances of group pairs for this group, if not delete it
+                        }
+                        // Send message to delete
+                        let message = ServerPayload::SyncGroup {
+                            id: group.id,
+                            name: group.name,
+                            cong: group.cong,
+                            elder: group.elder,
+                            updated: group.updated,
+                            deleted: true,
+                        };
+                        let message_bytes = rmp_serde::to_vec(&message).unwrap();
+                        let _ = write
+                            .send(tokio_tungstenite::tungstenite::Message::binary(
+                                message_bytes,
+                            ))
+                            .await;
+                    } else {
+                        // Send message to update
+                        let message = ServerPayload::SyncGroup {
+                            id: group.id,
+                            name: group.name,
+                            cong: group.cong,
+                            elder: group.elder,
+                            updated: group.updated,
+                            deleted: false,
+                        };
+                        let message_bytes = rmp_serde::to_vec(&message).unwrap();
+                        let _ = write
+                            .send(tokio_tungstenite::tungstenite::Message::binary(
+                                message_bytes,
+                            ))
+                            .await;
+                    }
+                }
+            }
+        }
+        Err(_error) => {
+            // TODO: handle error
+        }
+    }
     Ok(())
 }
 
@@ -305,15 +366,23 @@ async fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> 
     let name: String = row.try_get("name")?;
     let cong: u32 = row.try_get("congregation")?;
     let elder: u32 = row.try_get("elder")?;
-    let updated: u64 = row.try_get("updated")?;
-    let deleted: bool = row.try_get("delted")?;
+    let group_updated: u64 = row.try_get("group_updated")?;
+    let pair_updated: u64 = row.try_get("pair_updated")?;
+    let updated: u64 = if group_updated > pair_updated {
+        group_updated
+    } else {
+        pair_updated
+    };
+    let group_deleted: bool = row.try_get("delted")?;
+    let pair_deleted: bool = row.try_get("pair_delted")?;
     Ok(GroupDetails {
         id,
         name,
         cong,
         elder,
         updated,
-        deleted,
+        group_deleted,
+        pair_deleted,
     })
 }
 
