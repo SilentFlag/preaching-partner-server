@@ -6,7 +6,7 @@ CREATE TABLE categories(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, pref
 
 CREATE TABLE service_group(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, congregation INTEGER, elder INTEGER, updated INTEGER, deleted BOOL, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id), CONSTRAINT fk_elder FOREIGN KEY (elder) REFERENCES users(id));
 
-CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, lastname VARCHAR(255) NOT NULL, password VARCHAR(255), enabled BOOL NOT NULL, activation_code INT, service_group INTEGER, resync BOOL NOT NULL, CONSTRAINT fk_service_group FOREIGN KEY (service_group) REFERENCES service_group(id));
+CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, lastname VARCHAR(255) NOT NULL, password VARCHAR(255), enabled BOOL NOT NULL, activation_code INT, service_group INTEGER, resync BOOL NOT NULL, updated INTEGER, CONSTRAINT fk_service_group FOREIGN KEY (service_group) REFERENCES service_group(id));
 
 CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 

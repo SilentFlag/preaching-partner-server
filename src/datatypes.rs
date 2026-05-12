@@ -87,3 +87,9 @@ pub struct GroupDetails {
     pub group_deleted: bool,
     pub pair_deleted: bool,
 }
+
+pub struct UserPublicDetails {
+    pub id: u32,
+    pub name: String,
+    pub updated: u64,
+}

@@ -1,5 +1,6 @@
 use crate::datatypes::{
     CategoryDetails, CongDetails, GroupDetails, MapDetails, ServerMessage, ServerPayload,
+    UserPublicDetails,
 };
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
@@ -28,13 +29,14 @@ pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_s
             let congregations = get_congregations(id, db).await;
             match congregations {
                 Ok(congregations) => {
+                    // TODO: Handle errors returned by sync functions
                     let _sync_congregations_result =
                         sync_congregations(id, last_sync, &congregations, write, db).await;
 
                     let _sync_categories_result =
                         sync_categories(sync_vec, last_sync, &congregations, db).await;
 
-                    // let _sync_groups_result = sync_service_groups().await;
+                    let _sync_groups_result = sync_service_groups(id, last_sync, write, db).await;
 
                     // let _sync_users_result = sync_users().await;
 
@@ -371,7 +373,7 @@ async fn get_groups(
     match rows_result {
         Ok(rows) => {
             for row in rows {
-                let group_details = get_group_details(row).await;
+                let group_details = get_group_details(row);
                 match group_details {
                     Ok(details) => {
                         groups.push(details);
@@ -400,7 +402,7 @@ async fn get_groups(
 /// Return Value:
 ///     Ok(GroupDetails): Function successful
 ///     Err(sqlx::Error): Sqlx Error occured
-async fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
+fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
     let id = row.try_get("group_id")?;
     let name: String = row.try_get("name")?;
     let cong: u32 = row.try_get("congregation")?;
@@ -426,8 +428,49 @@ async fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> 
 }
 
 /// TODO: Write this function
-async fn sync_users() -> Result<(), sqlx::Error> {
+async fn _sync_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<(), sqlx::Error> {
+    let users = get_users(db).await;
     Ok(())
+}
+
+/// TODO: Write docs
+async fn get_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<Vec<UserPublicDetails>, sqlx::Error> {
+    let query = sqlx::query("SELECT id, firstname, lastname, updated FROM users");
+
+    let rows_result = query.fetch_all(db).await;
+
+    let mut users: Vec<UserPublicDetails> = vec![];
+
+    match rows_result {
+        Ok(rows) => {
+            for row in rows {
+                let user_details = get_user_details(row);
+                match user_details {
+                    Ok(user_details) => {
+                        users.push(user_details);
+                    }
+                    Err(error) => {
+                        // TODO: handle this error
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            return Err(error);
+        }
+    }
+
+    Ok(users)
+}
+
+/// TODO: Write docs
+fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let firstname: String = row.try_get("firstname")?;
+    let lastname: String = row.try_get("lastname")?;
+    let updated: u64 = row.try_get("updated")?;
+    let name = format!("{} {}", firstname, lastname);
+    Ok(UserPublicDetails { id, name, updated })
 }
 
 /// Sync the client's database of maps and images of maps to match the server
@@ -462,7 +505,7 @@ async fn _sync_maps(
             // user_id = rows[0].get("user");
 
             for row in rows {
-                let details = get_map_details(row).await;
+                let details = get_map_details(row);
 
                 match details {
                     Ok(map_details) => {
@@ -528,7 +571,7 @@ async fn _sync_maps(
 ///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
 ///
 /// TODO: Put in the column names
-async fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
+fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
     let image_name: String = row.try_get("file_name")?;
     let assignee: u32 = row.try_get("assignee")?;
     let assigner: u32 = row.try_get("assigner")?;
