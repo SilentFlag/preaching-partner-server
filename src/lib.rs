@@ -2,11 +2,10 @@ use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 pub mod datatypes;
-use crate::datatypes::{ClientMessage, ClientPayload, ServerMessage, ServerPayload};
+use crate::datatypes::ClientMessage;
 
-mod account;
-mod sync;
-use account::{login, roll_access_token, roll_refresh_token};
+mod authorise;
+use crate::authorise::check_permissions;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -39,46 +38,16 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
 
                 // TODO: Confirm the token sent with the message
                 let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
-                let id: u32 = decoded.id;
+                let token = decoded.token;
+                let actions = decoded.action_list;
 
-                match decoded.payload {
-                    ClientPayload::Login { name, password } => {
-                        let login_attempt: Result<u32, bool> = login(name, password, &db).await;
-                        let (success, refresh_token, access_token) = match login_attempt {
-                            Ok(result) => {
-                                let refresh_token = roll_refresh_token(result, &db).await;
-                                let access_token = roll_access_token(refresh_token, &db).await;
-                                (true, Some(refresh_token), access_token)
-                            }
-                            Err(_) => (false, None, None),
-                        };
-                        // TODO: handle the error of time going before UNIX_EPOCH, set time to 0?
-                        let current_time = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("Time went backwards")
-                            .as_millis() as u64;
-                        let confirm_message = ServerMessage {
-                            id: id,
-                            timestamp: current_time,
-                            payload: ServerPayload::ConfirmLogin {
-                                success,
-                                refresh_token,
-                                access_token,
-                            },
-                        };
-                        let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
-                        let _ = write
-                            .send(tokio_tungstenite::tungstenite::Message::binary(
-                                message_bytes,
-                            ))
-                            .await;
+                let user_authorised = check_permissions(token, actions);
+
+                match user_authorised {
+                    Ok(authorised) => if authorised {},
+                    Err(error) => {
+                        // TODO: handle error
                     }
-                    ClientPayload::UpdateCheckbox { .. } => {}
-                    ClientPayload::UpdateCheckboxDetails { .. } => {}
-                    ClientPayload::RequestSync(time) => {
-                        sync::sync_user(&db, &mut write, time, id).await;
-                    }
-                    ClientPayload::SetLowDataMode(..) => {}
                 }
             }
             Message::Close(_) => {
