@@ -1,13 +1,10 @@
 use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-pub mod datatypes;
-use crate::datatypes::ClientMessage;
-
 mod authorise;
+mod datatypes;
 use crate::authorise::check_permissions;
-
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::datatypes::ClientMessage;
 
 /// Core function accepting a user attempting to connect to the server
 pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sqlx::Sqlite>) {
