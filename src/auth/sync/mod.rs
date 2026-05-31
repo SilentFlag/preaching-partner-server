@@ -1,3 +1,4 @@
+use crate::auth::database::MyDatabase;
 use crate::datatypes::{
     CategoryDetails, CongDetails, GroupDetails, MapDetails, ServerMessage, ServerPayload,
     UserPublicDetails,
@@ -19,7 +20,8 @@ type WsSink = SplitSink<WsStream, Message>;
 /// Send the user updated data for all changes since the user last opened the app
 ///
 /// TODO: Fully sync user
-pub async fn sync_user(db: &sqlx::Pool<sqlx::Sqlite>, write: &mut WsSink, last_sync: u64, id: u32) {
+/// TODO: Update to use the MyDatabase abstraction as a parameter
+pub async fn sync_user(db: MyDatabase, write: &mut WsSink, last_sync: u64, id: u32) {
     // Select all the images from the database that have been updated since the last sync time
 
     let sync_vector = rmp_serde::to_vec(&last_sync);

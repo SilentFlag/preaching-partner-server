@@ -1,7 +1,12 @@
-use std::{str::FromStr};
-use tokio::net::TcpListener;
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
+use core::panic;
 use preaching_partner_server::handle_connection;
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
+use std::str::FromStr;
+use tokio::net::TcpListener;
+
+// TODO: Work out how to import this so I can pass the correct type to the handle connection function
+// mod auth;
+// use auth::database;
 
 #[tokio::main]
 async fn main() {
@@ -12,27 +17,13 @@ async fn main() {
     println!("Server listening on ws://0.0.0.0:9001");
 
     // Open Database
-    let my_pool_option = SqliteConnectOptions::from_str("sqlite://database/data.db");
-    let conn = match my_pool_option {
-        Ok(my_pool_option) => {
-            let my_pool_option = my_pool_option.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-            let conn = SqlitePool::connect_with(my_pool_option).await;
-            match conn {
-                Ok(conn) => {
-                    conn
-                }
-                Err(error) => {
-                    panic!("Connection to database failed: {:?}", error);
-                }
-            }
-        }
-        Err(error) => {
-            panic!("Database Options Failed: {:?}", error);
-        }
+    let data_storage = match database::MyDatabase::new().await {
+        Ok(database) => database,
+        Err(error) => panic!("{}", error),
     };
-    
+
     while let Ok((stream, _)) = listener.accept().await {
-        let pool = conn.clone();
+        let pool = data_storage.clone();
         tokio::spawn(handle_connection(stream, pool));
     }
 }

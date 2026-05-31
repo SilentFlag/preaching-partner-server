@@ -1,4 +1,6 @@
+use rand::rngs::SysError;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 // use tokio::sync::{mpsc, oneshot, broadcast};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -92,4 +94,30 @@ pub struct UserPublicDetails {
     pub id: u32,
     pub name: String,
     pub updated: u64,
+}
+
+/// All errors relating to MyDatabase
+#[derive(Debug)]
+pub enum DbError {
+    InvalidLocation(sqlx::Error),
+    ConnectionFailure(sqlx::Error),
+    InvalidToken(u32),
+    QueryFailure(sqlx::Error),
+    TokenRngFailure(SysError),
+    UnknownError(sqlx::Error),
+}
+
+impl fmt::Display for DbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DbError::InvalidLocation(error) => write!(f, "db not found: {}", error),
+            DbError::ConnectionFailure(error) => write!(f, "connection to db failed: {}", error),
+            DbError::InvalidToken(error) => {
+                write!(f, "token returned an invalid number of users: {}", error)
+            }
+            DbError::QueryFailure(error) => write!(f, "a query failed to run: {}", error),
+            DbError::TokenRngFailure(error) => write!(f, "a token failed to generate: {}", error),
+            DbError::UnknownError(error) => write!(f, "an unknown error occured: {}", error),
+        }
+    }
 }

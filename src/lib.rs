@@ -4,14 +4,20 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 pub mod datatypes;
 use crate::datatypes::{ClientMessage, ClientPayload, ServerMessage, ServerPayload};
 
-mod account;
-mod sync;
-use account::{login, roll_access_token, roll_refresh_token};
+// /// Validation abstraction layer for actions related to user accounts
+// mod account;
+// use account::{login, roll_access_token, roll_refresh_token};
+// /// Database abstraction layer for the database
+// mod database;
+// /// Abstraction layer for the syncing of users coming back online
+// mod sync;
+mod auth;
+use auth::{account, database, sync};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Core function accepting a user attempting to connect to the server
-pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sqlx::Sqlite>) {
+pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDatabase) {
     let ws_stream = accept_async(stream)
         .await
         .expect("Failed to accept WebSocket");
@@ -43,11 +49,14 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
 
                 match decoded.payload {
                     ClientPayload::Login { name, password } => {
-                        let login_attempt: Result<u32, bool> = login(name, password, &db).await;
+                        let login_attempt: Result<u32, bool> =
+                            account::login(name, password, db.clone()).await;
                         let (success, refresh_token, access_token) = match login_attempt {
                             Ok(result) => {
-                                let refresh_token = roll_refresh_token(result, &db).await;
-                                let access_token = roll_access_token(refresh_token, &db).await;
+                                let refresh_token =
+                                    account::roll_refresh_token(result, db.clone()).await;
+                                let access_token =
+                                    account::roll_access_token(refresh_token, db.clone()).await;
                                 (true, Some(refresh_token), access_token)
                             }
                             Err(_) => (false, None, None),
@@ -76,7 +85,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: sqlx::Pool<sql
                     ClientPayload::UpdateCheckbox { .. } => {}
                     ClientPayload::UpdateCheckboxDetails { .. } => {}
                     ClientPayload::RequestSync(time) => {
-                        sync::sync_user(&db, &mut write, time, id).await;
+                        sync::sync_user(db.clone(), &mut write, time, id).await;
                     }
                     ClientPayload::SetLowDataMode(..) => {}
                 }
