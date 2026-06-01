@@ -1,7 +1,6 @@
 use crate::database::MyDatabase;
 use crate::datatypes::{
-    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage, ServerPayload,
-    UserPublicDetails,
+    CongDetails, DbError, MapDetails, ServerMessage, ServerPayload, UserPublicDetails,
 };
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
@@ -33,12 +32,12 @@ pub async fn sync_user(
     let sync_vector = rmp_serde::to_vec(&last_sync);
     match sync_vector {
         Ok(sync_vec) => {
-            // TODO: Sync map dependencies first (categories, users, congregation)
-            let congregations = sync_congregations(id, last_sync, write, db).await?;
+            let congregations = sync_congregations(id, last_sync, write, db.clone()).await?;
 
-            let _ = sync_categories(sync_vec, &congregations, db).await?;
+            // TODO: Send messages to client fo categories
+            let _ = sync_categories(sync_vec, &congregations, db.clone()).await?;
 
-            let _sync_groups_result = sync_service_groups(id, last_sync, write, db).await;
+            let _ = sync_service_groups(id, last_sync, write, db.clone()).await?;
 
             // let _sync_users_result = sync_users().await;
 
@@ -163,56 +162,20 @@ async fn sync_service_groups(
     user_id: u32,
     last_sync: u64,
     write: &mut WsSink,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<(), sqlx::Error> {
-    let groups = get_groups(user_id, db).await;
+    db: MyDatabase,
+) -> Result<(), DbError> {
+    let groups = db.get_groups(user_id).await;
     match groups {
         Ok(groups) => {
             for group in groups {
                 if group.updated > last_sync {
                     if group.pair_deleted {
                         // Delete record of user_group_pair
-                        let update_query = sqlx::query(
-                            "DELETE FROM user_group_pair WHERE user_id = ? AND group_id = ?",
-                        )
-                        .bind(&user_id)
-                        .bind(group.id);
-
-                        let rows_result = update_query.execute(db).await;
-                        if let Err(error) = rows_result {
-                            // TODO: handle this error
-                            println!("Something went wrong");
-                            return Err(error);
-                        }
+                        let _ = db.delete_user_group_record(user_id, group.id).await?;
 
                         // Check if record of group needs to be deleted
                         if group.group_deleted {
-                            let query = sqlx::query(
-                                "SELECT user_id FROM user_group_pair WHERE group_id = ?",
-                            )
-                            .bind(group.id);
-
-                            let rows_result = query.fetch_all(db).await;
-
-                            match rows_result {
-                                Ok(rows) => {
-                                    if rows.len() == 0 {
-                                        let update_query =
-                                            sqlx::query("DELETE FROM service_group WHERE id = ?")
-                                                .bind(group.id);
-
-                                        let rows_result = update_query.execute(db).await;
-                                        if let Err(error) = rows_result {
-                                            // TODO: handle this error
-                                            println!("Something went wrong");
-                                            return Err(error);
-                                        }
-                                    }
-                                }
-                                Err(_error) => {
-                                    // TODO: handle this error
-                                }
-                            }
+                            let _ = db.delete_group_record(group.id).await?;
                         }
 
                         // Send message to delete
@@ -257,78 +220,9 @@ async fn sync_service_groups(
     Ok(())
 }
 
-// TODO: write docs
-async fn get_groups(
-    user_id: u32,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<Vec<GroupDetails>, sqlx::Error> {
-    let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
-        .bind(&user_id);
-
-    let rows_result = query.fetch_all(db).await;
-
-    let mut groups: Vec<GroupDetails> = vec![];
-
-    match rows_result {
-        Ok(rows) => {
-            for row in rows {
-                let group_details = get_group_details(row);
-                match group_details {
-                    Ok(details) => {
-                        groups.push(details);
-                    }
-                    Err(_error) => {
-                        // TODO: handle error, don't return in case some groups are found?
-                    }
-                }
-            }
-        }
-        Err(error) => {
-            return Err(error);
-        }
-    }
-
-    Ok(groups)
-}
-
-/// Given a SqliteRow of a groups details, return the formatted details
-///
-/// Query for rows: "SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?"
-///
-/// Parameters:
-///     row: SqliteRow of the group details
-///
-/// Return Value:
-///     Ok(GroupDetails): Function successful
-///     Err(sqlx::Error): Sqlx Error occured
-fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
-    let id = row.try_get("group_id")?;
-    let name: String = row.try_get("name")?;
-    let cong: u32 = row.try_get("congregation")?;
-    let elder: u32 = row.try_get("elder")?;
-    let group_updated: u64 = row.try_get("group_updated")?;
-    let pair_updated: u64 = row.try_get("pair_updated")?;
-    let updated: u64 = if group_updated > pair_updated {
-        group_updated
-    } else {
-        pair_updated
-    };
-    let group_deleted: bool = row.try_get("delted")?;
-    let pair_deleted: bool = row.try_get("pair_delted")?;
-    Ok(GroupDetails {
-        id,
-        name,
-        cong,
-        elder,
-        updated,
-        group_deleted,
-        pair_deleted,
-    })
-}
-
 /// TODO: Write this function
 async fn _sync_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<(), sqlx::Error> {
-    let users = get_users(db).await;
+    let _users = get_users(db).await;
     Ok(())
 }
 
@@ -348,7 +242,7 @@ async fn get_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<Vec<UserPublicDetail
                     Ok(user_details) => {
                         users.push(user_details);
                     }
-                    Err(error) => {
+                    Err(_error) => {
                         // TODO: handle this error
                     }
                 }

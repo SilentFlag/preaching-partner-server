@@ -1,5 +1,5 @@
 // use argon2::password_hash;
-use crate::datatypes::{CategoryDetails, CongDetails, DbError};
+use crate::datatypes::{CategoryDetails, CongDetails, DbError, GroupDetails};
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
 use std::str::FromStr;
@@ -284,6 +284,81 @@ impl MyDatabase {
             Err(error) => return Err(DbError::QueryFailure(error)),
         }
     }
+
+    // Get all groups for a user
+    pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
+        let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
+        .bind(&user_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut groups: Vec<GroupDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let group_details = get_group_details(row);
+                    match group_details {
+                        Ok(details) => {
+                            groups.push(details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(groups)
+    }
+
+    // Remove record of user being part of a group
+    // TODO: Refine query to only delete where a row is marked for deletion
+    // TODO: Handle edge case of no rows removed
+    pub async fn delete_user_group_record(
+        &self,
+        user_id: u32,
+        group_id: u32,
+    ) -> Result<(), DbError> {
+        let update_query =
+            sqlx::query("DELETE FROM user_group_pair WHERE user_id = ? AND group_id = ?")
+                .bind(user_id)
+                .bind(group_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+        Ok(())
+    }
+
+    pub async fn delete_group_record(&self, group_id: u32) -> Result<(), DbError> {
+        let query =
+            sqlx::query("SELECT user_id FROM user_group_pair WHERE group_id = ?").bind(group_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        match rows_result {
+            Ok(rows) => {
+                if rows.len() == 0 {
+                    let update_query =
+                        sqlx::query("DELETE FROM service_group WHERE id = ?").bind(group_id);
+
+                    let rows_result = update_query.execute(&self.data).await;
+                    if let Err(error) = rows_result {
+                        return Err(DbError::QueryFailure(error));
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 // Helper functions
@@ -325,5 +400,40 @@ fn category_row_to_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Erro
         prefix,
         congregation,
         updated,
+    })
+}
+
+/// Given a SqliteRow of a groups details, return the formatted details
+///
+/// Query for rows: "SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?"
+///
+/// Parameters:
+///     row: SqliteRow of the group details
+///
+/// Return Value:
+///     Ok(GroupDetails): Function successful
+///     Err(sqlx::Error): Sqlx Error occured
+fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
+    let id = row.try_get("group_id")?;
+    let name: String = row.try_get("name")?;
+    let cong: u32 = row.try_get("congregation")?;
+    let elder: u32 = row.try_get("elder")?;
+    let group_updated: u64 = row.try_get("group_updated")?;
+    let pair_updated: u64 = row.try_get("pair_updated")?;
+    let updated: u64 = if group_updated > pair_updated {
+        group_updated
+    } else {
+        pair_updated
+    };
+    let group_deleted: bool = row.try_get("delted")?;
+    let pair_deleted: bool = row.try_get("pair_delted")?;
+    Ok(GroupDetails {
+        id,
+        name,
+        cong,
+        elder,
+        updated,
+        group_deleted,
+        pair_deleted,
     })
 }
