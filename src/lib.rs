@@ -4,15 +4,11 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 pub mod datatypes;
 use crate::datatypes::{ClientMessage, ClientPayload, ServerMessage, ServerPayload};
 
-// /// Validation abstraction layer for actions related to user accounts
-// mod account;
-// use account::{login, roll_access_token, roll_refresh_token};
-// /// Database abstraction layer for the database
-// mod database;
-// /// Abstraction layer for the syncing of users coming back online
-// mod sync;
+// Authorisation layer for the database
 mod auth;
-use auth::{account, database, sync};
+use auth::account;
+mod database;
+mod sync;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -37,13 +33,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
         // TODO: handle corrupt messages
         let msg = msg.unwrap();
         match msg {
-            Message::Text(..) => {
-                // Incoming text messages, these are unexpected.
-            }
             Message::Binary(bin) => {
-                // Handle binary messages if needed
-
-                // TODO: Confirm the token sent with the message
                 let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
                 let id: u32 = decoded.id;
 

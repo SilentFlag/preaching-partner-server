@@ -1,6 +1,6 @@
-use crate::auth::database::MyDatabase;
+use crate::database::MyDatabase;
 use crate::datatypes::{
-    CategoryDetails, CongDetails, GroupDetails, MapDetails, ServerMessage, ServerPayload,
+    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage, ServerPayload,
     UserPublicDetails,
 };
 use futures_util::SinkExt;
@@ -21,41 +21,36 @@ type WsSink = SplitSink<WsStream, Message>;
 ///
 /// TODO: Fully sync user
 /// TODO: Update to use the MyDatabase abstraction as a parameter
-pub async fn sync_user(db: MyDatabase, write: &mut WsSink, last_sync: u64, id: u32) {
+/// TODO: Update the error return to also include edge case errors
+pub async fn sync_user(
+    db: MyDatabase,
+    write: &mut WsSink,
+    last_sync: u64,
+    id: u32,
+) -> Result<(), DbError> {
     // Select all the images from the database that have been updated since the last sync time
 
     let sync_vector = rmp_serde::to_vec(&last_sync);
     match sync_vector {
         Ok(sync_vec) => {
             // TODO: Sync map dependencies first (categories, users, congregation)
-            let congregations = get_congregations(id, db).await;
-            match congregations {
-                Ok(congregations) => {
-                    // TODO: Handle errors returned by sync functions
-                    let _sync_congregations_result =
-                        sync_congregations(id, last_sync, &congregations, write, db).await;
+            let congregations = sync_congregations(id, last_sync, write, db).await?;
 
-                    let _sync_categories_result =
-                        sync_categories(sync_vec, last_sync, &congregations, db).await;
+            let _ = sync_categories(sync_vec, &congregations, db).await?;
 
-                    let _sync_groups_result = sync_service_groups(id, last_sync, write, db).await;
+            let _sync_groups_result = sync_service_groups(id, last_sync, write, db).await;
 
-                    // let _sync_users_result = sync_users().await;
+            // let _sync_users_result = sync_users().await;
 
-                    // TODO: Uncomment this when all dependent tables have been implemented
-                    // let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
-                }
-                Err(_) => {
-                    // TODO: Handle this error
-                    println!("An error occured");
-                }
-            }
+            // TODO: Uncomment this when all dependent tables have been implemented
+            // let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
         }
         Err(_) => {
             //TODO: Something
             println!("Error happened 1837");
         }
     }
+    Ok(())
 }
 
 /// Sync the client's database of congregations as they are in the database on the server
@@ -77,99 +72,45 @@ pub async fn sync_user(db: MyDatabase, write: &mut WsSink, last_sync: u64, id: u
 async fn sync_congregations(
     user_id: u32,
     last_sync: u64,
-    congregations: &Vec<CongDetails>,
     write: &mut WsSink,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<(), sqlx::Error> {
-    for cong in congregations {
-        if cong.updated > last_sync {
-            let payload = ServerPayload::SyncCong {
-                cong_id: cong.cong_id,
-                cong_name: cong.cong_name.clone(),
-                remove: cong.remove,
-            };
-            let message = ServerMessage {
-                id: 0,
-                timestamp: cong.timestamp,
-                payload,
-            };
-            // Send message
-            let message_bytes = rmp_serde::to_vec(&message).unwrap();
-            let _ = write
-                .send(tokio_tungstenite::tungstenite::Message::binary(
-                    message_bytes,
-                ))
-                .await;
+    db: MyDatabase,
+) -> Result<Vec<CongDetails>, DbError> {
+    let congregations_result = db.get_congregations(user_id).await;
 
-            if cong.remove == true {
-                let update_query = sqlx::query(
-                    "DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?",
-                )
-                .bind(&user_id)
-                .bind(cong.cong_id);
+    match congregations_result {
+        Ok(congregations) => {
+            for cong in congregations.iter().clone() {
+                if cong.updated > last_sync {
+                    let payload = ServerPayload::SyncCong {
+                        cong_id: cong.cong_id,
+                        cong_name: cong.cong_name.clone(),
+                        remove: cong.remove,
+                    };
+                    let message = ServerMessage {
+                        id: 0,
+                        timestamp: cong.timestamp,
+                        payload,
+                    };
+                    // Send message
+                    // TODO: Handle error of message failing to send
+                    let message_bytes = rmp_serde::to_vec(&message).unwrap();
+                    let _ = write
+                        .send(tokio_tungstenite::tungstenite::Message::binary(
+                            message_bytes,
+                        ))
+                        .await;
 
-                let rows_result = update_query.execute(db).await;
-                if let Err(error) = rows_result {
-                    // TODO: handle this error
-                    println!("Something went wrong");
-                    return Err(error);
+                    if cong.remove == true {
+                        let _ = db.delete_user_cong_record(user_id, cong.cong_id);
+                    }
                 }
             }
-        }
-    }
-    Ok(())
-}
-
-/// Get all congregations relevent to a particular user
-///
-/// Parameters:
-///     user_id: Id of the user as found in the users table
-///     db: Reference to the database
-///
-/// Return Value:
-///     Ok(Vec<CongDetails>): Returned when getting congregations is successful, vector of all relevent congregations
-///     Err(sqlx::Error): Returned when there is a problem with the database
-///
-async fn get_congregations(
-    user_id: u32,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<Vec<CongDetails>, sqlx::Error> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_millis() as u64;
-
-    let query = sqlx::query(
-        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id",
-    )
-    .bind(&user_id);
-
-    let rows_result = query.fetch_all(db).await;
-
-    let mut congregations: Vec<CongDetails> = vec![];
-
-    match rows_result {
-        Ok(rows) => {
-            for row in rows {
-                let cong_id: u32 = row.try_get("congregation_id")?;
-                let cong_name: String = row.try_get("name")?;
-                let remove: bool = row.try_get("deleted")?;
-                let updated: u64 = 0;
-                congregations.push(CongDetails {
-                    cong_id,
-                    cong_name,
-                    timestamp,
-                    remove,
-                    updated,
-                });
-            }
+            Ok(congregations)
         }
         Err(error) => {
             return Err(error);
         }
     }
-
-    Ok(congregations)
 }
 
 /// Sync the client's database of categories as they are in the database on the server
@@ -187,67 +128,23 @@ async fn get_congregations(
 /// TODO: Send the message to the client to sync the category
 async fn sync_categories(
     last_sync_vec: Vec<u8>,
-    last_sync: u64,
     congregations: &Vec<CongDetails>,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<(), sqlx::Error> {
-    let get_maps_query =
-        sqlx::query("SELECT * FROM categories WHERE updated >= ?").bind(hex::encode(last_sync_vec));
+    db: MyDatabase,
+) -> Result<(), DbError> {
+    let categories = db.get_categories(last_sync_vec).await?;
 
-    let rows_result = get_maps_query.fetch_all(db).await;
+    let mut cong_ids = HashSet::new();
+    for cong in congregations {
+        cong_ids.insert(cong.cong_id);
+    }
 
-    match rows_result {
-        Ok(rows) => {
-            let mut cong_ids = HashSet::new();
-            for cong in congregations {
-                cong_ids.insert(cong.cong_id);
-            }
-            for row in rows {
-                let category_details = get_category_details(row).await;
-                match category_details {
-                    Ok(category_details) => {
-                        if category_details.updated > last_sync
-                            && cong_ids.contains(&category_details.id)
-                        {
-                            // TODO: send message to client to update
-                        }
-                    }
-                    Err(error) => {
-                        return Err(error);
-                    }
-                }
-            }
-        }
-        Err(error) => {
-            return Err(error);
+    for row in categories {
+        if cong_ids.contains(&row.congregation) {
+            // TODO: send message to client to update
         }
     }
 
     Ok(())
-}
-
-/// Given a SqliteRow, return the details of the category
-///
-/// Parameter:
-///     row: A SqliteRow of the categories table
-///
-/// Return Value:
-///     Ok(MapDetails): Category details from row returned when successful
-///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
-///
-async fn get_category_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Error> {
-    let id = row.try_get("id")?;
-    let name = row.try_get("name")?;
-    let prefix = row.try_get("prefix")?;
-    let congregation = row.try_get("congregation")?;
-    let updated = row.try_get("updated")?;
-    Ok(CategoryDetails {
-        id,
-        name,
-        prefix,
-        congregation,
-        updated,
-    })
 }
 
 /// Given a user_id and last sync time, sync the user with the database on the server

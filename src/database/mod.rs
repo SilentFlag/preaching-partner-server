@@ -1,8 +1,9 @@
 // use argon2::password_hash;
-use crate::datatypes::DbError;
+use crate::datatypes::{CategoryDetails, CongDetails, DbError};
 use blake2::{Blake2b512, Digest};
-use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions};
+use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
 pub struct MyDatabase {
@@ -29,8 +30,9 @@ impl MyDatabase {
         Ok(MyDatabase { data: conn })
     }
 
+    // ------------------- ACCOUNT FUNCTIONS ------------------
     /// Fetch user by a given refresh token
-    pub(in crate::auth) async fn fetch_user_from_refresh_token(
+    pub async fn fetch_user_from_refresh_token(
         &self,
         user_token: [u8; 32],
     ) -> Result<u32, DbError> {
@@ -58,10 +60,7 @@ impl MyDatabase {
 
     /// Fetch user by a given access token
     /// TODO: Write this
-    pub(in crate::auth) async fn fetch_user_from_access_token(
-        &self,
-        user_token: [u8; 32],
-    ) -> Result<u32, DbError> {
+    pub async fn fetch_user_from_access_token(&self, user_token: [u8; 32]) -> Result<u32, DbError> {
         let user_id: u32;
         let get_user_id_query =
             sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = false)")
@@ -86,11 +85,7 @@ impl MyDatabase {
 
     /// Check if the username and password hash match, return Ok(user_id) if they do
     /// TODO: Better error return value
-    pub(in crate::auth) async fn check_user_password(
-        &self,
-        name: &str,
-        pass_hash: &str,
-    ) -> Result<u32, bool> {
+    pub async fn check_user_password(&self, name: &str, pass_hash: &str) -> Result<u32, bool> {
         let query = sqlx::query("SELECT * FROM users WHERE firstname = ? AND password = ?")
             .bind(&name)
             .bind(&pass_hash);
@@ -105,7 +100,7 @@ impl MyDatabase {
     }
 
     /// Given a refresh and access token, logout that user
-    pub(in crate::auth) async fn logout_user(
+    pub async fn logout_user(
         self,
         refresh_token: [u8; 32],
         access_token: [u8; 32],
@@ -133,7 +128,7 @@ impl MyDatabase {
     /// create new refresh token
     /// The refresh token is used to generate access tokens at the start of new sessions or every 15(?) minutes
     /// TODO: Check if token already exists
-    pub(in crate::auth) async fn update_refresh_token(
+    pub async fn update_refresh_token(
         &self,
         user: u32,
         new_token: [u8; 32],
@@ -161,7 +156,7 @@ impl MyDatabase {
     /// access token
     /// access tokens are temporary tokens only valid for 15(?) minutes after creation
     /// TODO: Check if token already exists
-    pub(in crate::auth) async fn update_access_token(
+    pub async fn update_access_token(
         &self,
         user: u32,
         new_token: [u8; 32],
@@ -188,7 +183,7 @@ impl MyDatabase {
     }
 
     /// revoke all tokens from a given user in the database
-    pub(in crate::auth) async fn revoke_tokens(&self, user: u32) -> Result<(), DbError> {
+    pub async fn revoke_tokens(&self, user: u32) -> Result<(), DbError> {
         let insert_token_query = sqlx::query("DELETE FROM tokens WHERE user = ?").bind(&user);
 
         let query_result = insert_token_query.execute(&self.data).await;
@@ -198,4 +193,137 @@ impl MyDatabase {
         }
         Ok(())
     }
+
+    // ------------------ SYNC FUNCTIONS -----------------
+
+    /// Get all congregations relevent to a particular user
+    ///
+    /// Parameters:
+    ///     user_id: Id of the user as found in the users table
+    ///     db: Reference to the database
+    ///
+    /// Return Value:
+    ///     Ok(Vec<CongDetails>): Returned when getting congregations is successful, vector of all relevent congregations
+    ///     Err(sqlx::Error): Returned when there is a problem with the database
+    ///
+    pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis() as u64;
+
+        let query = sqlx::query(
+        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id").bind(&user_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut congregations: Vec<CongDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let cong_details = cong_row_to_details(row, timestamp);
+                    match cong_details {
+                        Ok(details) => {
+                            congregations.push(details);
+                        }
+                        Err(error) => {
+                            return Err(DbError::QueryFailure(error));
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(congregations)
+    }
+
+    /// Remove record of user being part of a congregation
+    /// TODO: Refine query to only delete where delete is checked
+    /// TODO: Handle case of no rows affected
+    pub async fn delete_user_cong_record(&self, user_id: u32, cong_id: u32) -> Result<(), DbError> {
+        let update_query =
+            sqlx::query("DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?")
+                .bind(&user_id)
+                .bind(cong_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+        Ok(())
+    }
+
+    // Get all categories updated after a timestamp
+    pub async fn get_categories(
+        &self,
+        last_sync_vec: Vec<u8>,
+    ) -> Result<Vec<CategoryDetails>, DbError> {
+        let get_maps_query = sqlx::query("SELECT * FROM categories WHERE updated >= ?")
+            .bind(hex::encode(last_sync_vec));
+
+        let rows_result = get_maps_query.fetch_all(&self.data).await;
+
+        match rows_result {
+            Ok(result) => {
+                let mut categories = vec![];
+                for row in result {
+                    let row_to_details = category_row_to_details(row);
+                    match row_to_details {
+                        Ok(category_details) => categories.push(category_details),
+                        Err(error) => {
+                            return Err(DbError::InvalidRow(error));
+                        }
+                    }
+                }
+                return Ok(categories);
+            }
+            Err(error) => return Err(DbError::QueryFailure(error)),
+        }
+    }
+}
+
+// Helper functions
+
+/// Convert a row of the congregations table to the CongDetails datatype
+fn cong_row_to_details(row: SqliteRow, timestamp: u64) -> Result<CongDetails, sqlx::Error> {
+    let cong_id: u32 = row.try_get("congregation_id")?;
+    let cong_name: String = row.try_get("name")?;
+    let remove: bool = row.try_get("deleted")?;
+    let updated: u64 = 0;
+    Ok(CongDetails {
+        cong_id,
+        cong_name,
+        timestamp,
+        remove,
+        updated,
+    })
+}
+
+/// Given a SqliteRow, return the details of the category
+///
+/// Parameter:
+///     row: A SqliteRow of the categories table
+///
+/// Return Value:
+///     Ok(MapDetails): Category details from row returned when successful
+///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
+///
+/// TODO: does CategoryDetails need a timestamp field?
+fn category_row_to_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let name = row.try_get("name")?;
+    let prefix = row.try_get("prefix")?;
+    let congregation = row.try_get("congregation")?;
+    let updated = row.try_get("updated")?;
+    Ok(CategoryDetails {
+        id,
+        name,
+        prefix,
+        congregation,
+        updated,
+    })
 }

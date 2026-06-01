@@ -1,7 +1,7 @@
 use rand::TryRng;
 use rand::rngs::SysRng;
 
-use super::database::MyDatabase;
+use crate::database::MyDatabase;
 use crate::datatypes::DbError;
 
 /// Check the validity of given credentials

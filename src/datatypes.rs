@@ -100,8 +100,9 @@ pub struct UserPublicDetails {
 #[derive(Debug)]
 pub enum DbError {
     InvalidLocation(sqlx::Error),
-    ConnectionFailure(sqlx::Error),
     InvalidToken(u32),
+    InvalidRow(sqlx::Error),
+    ConnectionFailure(sqlx::Error),
     QueryFailure(sqlx::Error),
     TokenRngFailure(SysError),
     UnknownError(sqlx::Error),
@@ -111,10 +112,17 @@ impl fmt::Display for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DbError::InvalidLocation(error) => write!(f, "db not found: {}", error),
-            DbError::ConnectionFailure(error) => write!(f, "connection to db failed: {}", error),
             DbError::InvalidToken(error) => {
                 write!(f, "token returned an invalid number of users: {}", error)
             }
+            DbError::InvalidRow(error) => {
+                write!(
+                    f,
+                    "an invalid row was passed to a parsing function: {}",
+                    error
+                )
+            }
+            DbError::ConnectionFailure(error) => write!(f, "connection to db failed: {}", error),
             DbError::QueryFailure(error) => write!(f, "a query failed to run: {}", error),
             DbError::TokenRngFailure(error) => write!(f, "a token failed to generate: {}", error),
             DbError::UnknownError(error) => write!(f, "an unknown error occured: {}", error),
