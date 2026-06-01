@@ -9,8 +9,7 @@ use crate::datatypes::DbError;
 /// If they are invalid, Err(false) is returned
 ///
 /// TODO: Hash password before checking database
-/// TODO: Return useful error types
-pub async fn login(name: String, password: String, db: MyDatabase) -> Result<u32, bool> {
+pub async fn login(name: String, password: String, db: MyDatabase) -> Result<u32, DbError> {
     // TODO: Hash password to match a hash in the database
     db.check_user_password(&name, &password).await
 }

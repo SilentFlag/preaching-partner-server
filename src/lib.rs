@@ -2,12 +2,12 @@ use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 pub mod datatypes;
-use crate::datatypes::{ClientMessage, ClientPayload, ServerMessage, ServerPayload};
+use crate::datatypes::{ClientMessage, ClientPayload, DbError, ServerMessage, ServerPayload};
 
 // Authorisation layer for the database
 mod auth;
 use auth::account;
-mod database;
+pub mod database;
 mod sync;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -39,33 +39,54 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
 
                 match decoded.payload {
                     ClientPayload::Login { name, password } => {
-                        let login_attempt: Result<u32, bool> =
+                        let login_attempt: Result<u32, DbError> =
                             account::login(name, password, db.clone()).await;
-                        let (success, refresh_token, access_token) = match login_attempt {
+                        let login_detail = match login_attempt {
                             Ok(result) => {
                                 let refresh_token =
                                     account::roll_refresh_token(result, db.clone()).await;
-                                let access_token =
-                                    account::roll_access_token(refresh_token, db.clone()).await;
-                                (true, Some(refresh_token), access_token)
+                                match refresh_token {
+                                    Ok(refresh_token) => {
+                                        let access_token =
+                                            account::roll_access_token(refresh_token, db.clone())
+                                                .await;
+                                        match access_token {
+                                            Ok(access_token) => Some((
+                                                true,
+                                                Some(refresh_token),
+                                                Some(access_token),
+                                            )),
+                                            // TODO: Handle error
+                                            Err(_) => None,
+                                        }
+                                    }
+                                    // TODO: Handle error
+                                    Err(_) => None,
+                                }
                             }
-                            Err(_) => (false, None, None),
+                            Err(_) => Some((false, None, None)),
                         };
                         // TODO: handle the error of time going before UNIX_EPOCH, set time to 0?
-                        let current_time = SystemTime::now()
+                        let timestamp = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .expect("Time went backwards")
                             .as_millis() as u64;
-                        let confirm_message = ServerMessage {
-                            id: id,
-                            timestamp: current_time,
-                            payload: ServerPayload::ConfirmLogin {
-                                success,
-                                refresh_token,
-                                access_token,
+                        let message = ServerMessage {
+                            id,
+                            timestamp,
+                            payload: match login_detail {
+                                Some(details) => {
+                                    let (success, refresh_token, access_token) = details;
+                                    ServerPayload::ConfirmLogin {
+                                        success,
+                                        refresh_token,
+                                        access_token,
+                                    }
+                                }
+                                None => ServerPayload::UnknownError,
                             },
                         };
-                        let message_bytes = rmp_serde::to_vec(&confirm_message).unwrap();
+                        let message_bytes = rmp_serde::to_vec(&message).unwrap();
                         let _ = write
                             .send(tokio_tungstenite::tungstenite::Message::binary(
                                 message_bytes,
@@ -75,7 +96,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
                     ClientPayload::UpdateCheckbox { .. } => {}
                     ClientPayload::UpdateCheckboxDetails { .. } => {}
                     ClientPayload::RequestSync(time) => {
-                        sync::sync_user(db.clone(), &mut write, time, id).await;
+                        let _ = sync::sync_user(db.clone(), &mut write, time, id).await;
                     }
                     ClientPayload::SetLowDataMode(..) => {}
                 }

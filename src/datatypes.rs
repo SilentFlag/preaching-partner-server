@@ -54,6 +54,7 @@ pub enum ServerPayload {
         deleted: bool,
     },
     SyncComplete,
+    UnknownError,
 }
 
 // The following structs are for syncing

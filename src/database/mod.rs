@@ -85,18 +85,22 @@ impl MyDatabase {
 
     /// Check if the username and password hash match, return Ok(user_id) if they do
     /// TODO: Better error return value
-    pub async fn check_user_password(&self, name: &str, pass_hash: &str) -> Result<u32, bool> {
+    pub async fn check_user_password(&self, name: &str, pass_hash: &str) -> Result<u32, DbError> {
         let query = sqlx::query("SELECT * FROM users WHERE firstname = ? AND password = ?")
             .bind(&name)
             .bind(&pass_hash);
         let rows_result = query.fetch_all(&self.data).await;
-        if let Ok(rows) = rows_result {
-            if rows.len() == 1 {
-                let user_id = rows[0].get("id");
-                return Ok(user_id);
+        match rows_result {
+            Ok(rows) => {
+                if rows.len() == 1 {
+                    let user_id = rows[0].get("id");
+                    return Ok(user_id);
+                } else {
+                    return Err(DbError::InvalidToken(rows.len() as u32));
+                }
             }
+            Err(error) => return Err(DbError::QueryFailure(error)),
         }
-        Err(false)
     }
 
     /// Given a refresh and access token, logout that user
@@ -361,7 +365,7 @@ impl MyDatabase {
     }
 }
 
-// Helper functions
+// ---------------- Helper functions --------------
 
 /// Convert a row of the congregations table to the CongDetails datatype
 fn cong_row_to_details(row: SqliteRow, timestamp: u64) -> Result<CongDetails, sqlx::Error> {

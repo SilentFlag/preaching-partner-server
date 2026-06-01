@@ -1,7 +1,6 @@
 use core::panic;
+use preaching_partner_server::database;
 use preaching_partner_server::handle_connection;
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
-use std::str::FromStr;
 use tokio::net::TcpListener;
 
 // TODO: Work out how to import this so I can pass the correct type to the handle connection function

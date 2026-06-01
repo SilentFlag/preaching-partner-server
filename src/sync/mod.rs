@@ -21,6 +21,7 @@ type WsSink = SplitSink<WsStream, Message>;
 /// TODO: Fully sync user
 /// TODO: Update to use the MyDatabase abstraction as a parameter
 /// TODO: Update the error return to also include edge case errors
+/// TODO: Authorise updates
 pub async fn sync_user(
     db: MyDatabase,
     write: &mut WsSink,
@@ -221,8 +222,8 @@ async fn sync_service_groups(
 }
 
 /// TODO: Write this function
-async fn _sync_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<(), sqlx::Error> {
-    let _users = get_users(db).await;
+async fn _sync_users(_db: MyDatabase) -> Result<(), sqlx::Error> {
+    // let _users = get_users(db).await;
     Ok(())
 }
 
