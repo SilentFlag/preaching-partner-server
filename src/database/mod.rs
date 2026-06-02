@@ -1,5 +1,7 @@
 // use argon2::password_hash;
-use crate::datatypes::{CategoryDetails, CongDetails, DbError, GroupDetails};
+use crate::datatypes::{
+    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, UserPublicDetails,
+};
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
 use std::str::FromStr;
@@ -30,7 +32,43 @@ impl MyDatabase {
         Ok(MyDatabase { data: conn })
     }
 
-    // ------------------- ACCOUNT FUNCTIONS ------------------
+    // ------------------- USER FUNCTIONS ------------------
+
+    /// Get users updated since a time that are in the clients congs
+    pub async fn get_users(
+        &self,
+        last_sync_vec: &Vec<u8>,
+        user_id: u32,
+    ) -> Result<Vec<UserPublicDetails>, DbError> {
+        let query =
+            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id FROM users WHERE users.updated > ? AND WHERE user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?) INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id")
+                .bind(last_sync_vec)
+                .bind(user_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut users: Vec<UserPublicDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let user_details = get_user_details(row);
+                    match user_details {
+                        Ok(user_details) => {
+                            users.push(user_details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(users)
+    }
+
     /// Fetch user by a given refresh token
     pub async fn fetch_user_from_refresh_token(
         &self,
@@ -198,7 +236,7 @@ impl MyDatabase {
         Ok(())
     }
 
-    // ------------------ SYNC FUNCTIONS -----------------
+    // ------------------ CONGREGATION FUNCTIONS -----------------
 
     /// Get all congregations relevent to a particular user
     ///
@@ -261,10 +299,12 @@ impl MyDatabase {
         Ok(())
     }
 
+    // ------------------ CATEGORY FUNCTIONS -----------------
+
     // Get all categories updated after a timestamp
     pub async fn get_categories(
         &self,
-        last_sync_vec: Vec<u8>,
+        last_sync_vec: &Vec<u8>,
     ) -> Result<Vec<CategoryDetails>, DbError> {
         let get_maps_query = sqlx::query("SELECT * FROM categories WHERE updated >= ?")
             .bind(hex::encode(last_sync_vec));
@@ -288,6 +328,8 @@ impl MyDatabase {
             Err(error) => return Err(DbError::QueryFailure(error)),
         }
     }
+
+    // ------------------ GROUP FUNCTIONS -----------------
 
     // Get all groups for a user
     pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
@@ -362,6 +404,38 @@ impl MyDatabase {
         }
 
         Ok(())
+    }
+
+    // ------------------ GROUP FUNCTIONS -----------------
+
+    pub async fn get_maps(
+        &self,
+        user_id: u32,
+        last_sync_vec: &Vec<u8>,
+    ) -> Result<Vec<MapDetails>, DbError> {
+        let get_maps_query =
+            sqlx::query("SELECT * FROM maps WHERE updated >= ? AND congregation IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
+                .bind(hex::encode(last_sync_vec))
+                .bind(user_id);
+
+        let rows_result = get_maps_query.fetch_all(&self.data).await;
+
+        let mut maps = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let map_details = get_map_details(row);
+                    match map_details {
+                        Ok(map_details) => maps.push(map_details),
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => return Err(DbError::QueryFailure(error)),
+        }
+
+        Ok(vec![])
     }
 }
 
@@ -439,5 +513,44 @@ fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
         updated,
         group_deleted,
         pair_deleted,
+    })
+}
+
+/// TODO: Write docs
+fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let firstname: String = row.try_get("firstname")?;
+    let lastname: String = row.try_get("lastname")?;
+    let updated: u64 = row.try_get("updated")?;
+    let cong: u32 = row.try_get("congregation_id")?;
+    let name = format!("{} {}", firstname, lastname);
+    Ok(UserPublicDetails {
+        id,
+        name,
+        cong,
+        updated,
+    })
+}
+
+/// Given a SqliteRow, return the details of the map
+///
+/// Parameter:
+///     row: A SqliteRow of the maps table
+///
+/// Return Value:
+///     Ok(MapDetails): Map details from row returned when successful
+///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
+///
+/// TODO: Put in the column names
+fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
+    let image_name: String = row.try_get("file_name")?;
+    let assignee: u32 = row.try_get("assignee")?;
+    let assigner: u32 = row.try_get("assigner")?;
+    let category: u32 = row.try_get("category")?;
+    Ok(MapDetails {
+        image_name,
+        assignee,
+        assigner,
+        category,
     })
 }

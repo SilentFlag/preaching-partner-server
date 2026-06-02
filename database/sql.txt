@@ -6,13 +6,13 @@ CREATE TABLE categories(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, pref
 
 CREATE TABLE service_group(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, congregation INTEGER, elder INTEGER, updated INTEGER, deleted BOOL, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id), CONSTRAINT fk_elder FOREIGN KEY (elder) REFERENCES users(id));
 
-CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, lastname VARCHAR(255) NOT NULL, password VARCHAR(255), enabled BOOL NOT NULL, activation_code INT, service_group INTEGER, resync BOOL NOT NULL, updated INTEGER, CONSTRAINT fk_service_group FOREIGN KEY (service_group) REFERENCES service_group(id));
+CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, lastname VARCHAR(255) NOT NULL, password VARCHAR(255), enabled BOOL NOT NULL, activation_code INT, resync BOOL NOT NULL, updated INTEGER);
 
 CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
 CREATE TABLE user_cong_pair(user_id INTEGER, congregation_id INTEGER, deleted BOOL, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
-CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category INT NOT NULL, visibility INT NOT NULL, file_name VARCHAR(255), updated INTEGER, CONSTRAINT fk_category FOREIGN KEY (category) REFERENCES categories(id));
+CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category INT NOT NULL, visibility INT NOT NULL, file_name VARCHAR(255), updated INTEGER, congregation INTEGER, CONSTRAINT fk_category FOREIGN KEY (category) REFERENCES categories(id), CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id));
 
 CREATE TABLE tokens(user INTEGER NOT NULL, refresh BOOL NOT NULL, token VARCHAR(255) NOT NULL, CONSTRAINT fk_user FOREIGN KEY (user) REFERENCES users(id));
 

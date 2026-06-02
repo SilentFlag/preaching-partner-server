@@ -1,14 +1,10 @@
 use crate::database::MyDatabase;
-use crate::datatypes::{
-    CongDetails, DbError, MapDetails, ServerMessage, ServerPayload, UserPublicDetails,
-};
+use crate::datatypes::{CongDetails, DbError, ServerMessage, ServerPayload};
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
-use sqlx::Row;
-use sqlx::sqlite::SqliteRow;
 use std::collections::HashSet;
+use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{fs, vec};
 use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
@@ -36,14 +32,14 @@ pub async fn sync_user(
             let congregations = sync_congregations(id, last_sync, write, db.clone()).await?;
 
             // TODO: Send messages to client fo categories
-            let _ = sync_categories(sync_vec, &congregations, db.clone()).await?;
+            let _ = sync_categories(&sync_vec, &congregations, db.clone()).await?;
 
             let _ = sync_service_groups(id, last_sync, write, db.clone()).await?;
 
-            // let _sync_users_result = sync_users().await;
+            let _ = sync_users(&sync_vec, id, db.clone()).await;
 
             // TODO: Uncomment this when all dependent tables have been implemented
-            // let _sync_maps_result = sync_maps(sync_vec, id, write, db).await;
+            let _sync_maps_result = sync_maps(&sync_vec, id, write, db.clone()).await;
         }
         Err(_) => {
             //TODO: Something
@@ -127,7 +123,7 @@ async fn sync_congregations(
 ///
 /// TODO: Send the message to the client to sync the category
 async fn sync_categories(
-    last_sync_vec: Vec<u8>,
+    last_sync_vec: &Vec<u8>,
     congregations: &Vec<CongDetails>,
     db: MyDatabase,
 ) -> Result<(), DbError> {
@@ -222,49 +218,11 @@ async fn sync_service_groups(
 }
 
 /// TODO: Write this function
-async fn _sync_users(_db: MyDatabase) -> Result<(), sqlx::Error> {
-    // let _users = get_users(db).await;
+async fn sync_users(last_sync_vec: &Vec<u8>, user_id: u32, db: MyDatabase) -> Result<(), DbError> {
+    let _users = db.get_users(last_sync_vec, user_id).await?;
+
+    // TODO: Send users to client
     Ok(())
-}
-
-/// TODO: Write docs
-async fn get_users(db: &sqlx::Pool<sqlx::Sqlite>) -> Result<Vec<UserPublicDetails>, sqlx::Error> {
-    let query = sqlx::query("SELECT id, firstname, lastname, updated FROM users");
-
-    let rows_result = query.fetch_all(db).await;
-
-    let mut users: Vec<UserPublicDetails> = vec![];
-
-    match rows_result {
-        Ok(rows) => {
-            for row in rows {
-                let user_details = get_user_details(row);
-                match user_details {
-                    Ok(user_details) => {
-                        users.push(user_details);
-                    }
-                    Err(_error) => {
-                        // TODO: handle this error
-                    }
-                }
-            }
-        }
-        Err(error) => {
-            return Err(error);
-        }
-    }
-
-    Ok(users)
-}
-
-/// TODO: Write docs
-fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
-    let id = row.try_get("id")?;
-    let firstname: String = row.try_get("firstname")?;
-    let lastname: String = row.try_get("lastname")?;
-    let updated: u64 = row.try_get("updated")?;
-    let name = format!("{} {}", firstname, lastname);
-    Ok(UserPublicDetails { id, name, updated })
 }
 
 /// Sync the client's database of maps and images of maps to match the server
@@ -281,70 +239,34 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
 ///
 /// TODO: Update to get maps only for the persons congregation, add congregation vector
 /// TODO: Handle error that get_map_details() returns
-async fn _sync_maps(
-    sync_vec: Vec<u8>,
+async fn sync_maps(
+    sync_vec: &Vec<u8>,
     id: u32,
     write: &mut WsSink,
-    db: &sqlx::Pool<sqlx::Sqlite>,
-) -> Result<(), sqlx::Error> {
-    // TODO: Be more selective in the maps that are sent, only ones that are relevent to the user
-    let get_maps_query =
-        sqlx::query("SELECT * FROM maps WHERE updated >= ?").bind(hex::encode(sync_vec));
+    db: MyDatabase,
+) -> Result<(), DbError> {
+    let maps = db.get_maps(id, sync_vec).await?;
 
-    let rows_result = get_maps_query.fetch_all(db).await;
-
-    if let Ok(rows) = rows_result {
-        if rows.len() > 0 {
-            // TODO: Loop through the rows and send the images.
-            // user_id = rows[0].get("user");
-
-            for row in rows {
-                let details = get_map_details(row);
-
-                match details {
-                    Ok(map_details) => {
-                        let image_file = fs::read(format!("maps/{}", map_details.image_name));
-                        // TODO: handle Err Result
-                        if let Ok(image) = image_file {
-                            let current_time = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .expect("Time went backwards")
-                                .as_millis() as u64;
-                            let image_message = ServerMessage {
-                                id: 0,
-                                timestamp: current_time,
-                                payload: ServerPayload::MapImage {
-                                    image_name: map_details.image_name,
-                                    image,
-                                    assignee: map_details.assignee,
-                                    assigner: map_details.assigner,
-                                    category: map_details.category,
-                                },
-                            };
-                            let message_bytes = rmp_serde::to_vec(&image_message).unwrap();
-                            let _ = write
-                                .send(tokio_tungstenite::tungstenite::Message::binary(
-                                    message_bytes,
-                                ))
-                                .await;
-                        }
-                    }
-                    Err(error) => {
-                        // TODO: Handle error
-                        println!("Error getting map details {:?}", error);
-                    }
-                }
-            }
+    for map_details in maps {
+        let image_file = fs::read(format!("maps/{}", map_details.image_name));
+        // TODO: handle Err Result
+        if let Ok(image) = image_file {
             let current_time = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards")
                 .as_millis() as u64;
-            let sync_complete_message = ServerMessage {
-                id,
+            let image_message = ServerMessage {
+                id: 0,
                 timestamp: current_time,
-                payload: ServerPayload::SyncComplete,
+                payload: ServerPayload::MapImage {
+                    image_name: map_details.image_name,
+                    image,
+                    assignee: map_details.assignee,
+                    assigner: map_details.assigner,
+                    category: map_details.category,
+                },
             };
-            let message_bytes = rmp_serde::to_vec(&sync_complete_message).unwrap();
+            let message_bytes = rmp_serde::to_vec(&image_message).unwrap();
             let _ = write
                 .send(tokio_tungstenite::tungstenite::Message::binary(
                     message_bytes,
@@ -352,28 +274,22 @@ async fn _sync_maps(
                 .await;
         }
     }
-    return Ok(());
-}
 
-/// Given a SqliteRow, return the details of the map
-///
-/// Parameter:
-///     row: A SqliteRow of the maps table
-///
-/// Return Value:
-///     Ok(MapDetails): Map details from row returned when successful
-///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
-///
-/// TODO: Put in the column names
-fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
-    let image_name: String = row.try_get("file_name")?;
-    let assignee: u32 = row.try_get("assignee")?;
-    let assigner: u32 = row.try_get("assigner")?;
-    let category: u32 = row.try_get("category")?;
-    Ok(MapDetails {
-        image_name,
-        assignee,
-        assigner,
-        category,
-    })
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis() as u64;
+    let sync_complete_message = ServerMessage {
+        id,
+        timestamp: current_time,
+        payload: ServerPayload::SyncComplete,
+    };
+    let message_bytes = rmp_serde::to_vec(&sync_complete_message).unwrap();
+    let _ = write
+        .send(tokio_tungstenite::tungstenite::Message::binary(
+            message_bytes,
+        ))
+        .await;
+
+    return Ok(());
 }
