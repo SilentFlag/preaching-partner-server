@@ -218,6 +218,7 @@ async fn sync_service_groups(
 }
 
 /// TODO: Write this function
+/// Should the sync users only sync requested users to protect privacy? It won't protect much as all people of a congregation will know each other already
 async fn sync_users(last_sync_vec: &Vec<u8>, user_id: u32, db: MyDatabase) -> Result<(), DbError> {
     let _users = db.get_users(last_sync_vec, user_id).await?;
 

@@ -1,6 +1,7 @@
 // use argon2::password_hash;
 use crate::datatypes::{
-    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, UserPublicDetails,
+    AddressDetails, AddressError, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails,
+    UserPublicDetails,
 };
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
@@ -406,8 +407,10 @@ impl MyDatabase {
         Ok(())
     }
 
-    // ------------------ GROUP FUNCTIONS -----------------
+    // ------------------ MAP FUNCTIONS -----------------
 
+    /// Get maps for a user
+    /// TODO: Restrict based on maps visible to user, not
     pub async fn get_maps(
         &self,
         user_id: u32,
@@ -436,6 +439,35 @@ impl MyDatabase {
         }
 
         Ok(vec![])
+    }
+
+    pub async fn get_addresses(&self, map_id: u32) -> Result<Vec<AddressDetails>, DbError> {
+        let query =
+            sqlx::query("SELECT id, map_id, number, tags, visited FROM addresses WHERE map_id = ?")
+                .bind(map_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut users: Vec<AddressDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let user_details = get_address_details(row);
+                    match user_details {
+                        Ok(user_details) => {
+                            users.push(user_details);
+                        }
+                        Err(error) => return Err(DbError::AddressFailure(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(users)
     }
 }
 
@@ -552,5 +584,21 @@ fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
         assignee,
         assigner,
         category,
+    })
+}
+
+fn get_address_details(row: SqliteRow) -> Result<AddressDetails, AddressError> {
+    let id = row.try_get("id")?;
+    let map_id = row.try_get("map_id")?;
+    let number = row.try_get("number")?;
+    let tags_serialised: Vec<u8> = row.try_get("tags")?;
+    let tags = rmp_serde::from_slice(&tags_serialised)?;
+    let visited: bool = row.try_get("visited")?;
+    Ok(AddressDetails {
+        id,
+        map_id,
+        number,
+        tags,
+        visited,
     })
 }
