@@ -16,6 +16,7 @@ CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category I
 
 CREATE TABLE tokens(user INTEGER NOT NULL, refresh BOOL NOT NULL, token VARCHAR(255) NOT NULL, CONSTRAINT fk_user FOREIGN KEY (user) REFERENCES users(id));
 
+CREATE TABLE addresses(id INTEGER PRIMARY KEY, map_id INTEGER, number VARCHAR(255), tags, visited BOOL, CONSTRAINT fk_map_id FOREIGN KEY (map_id) REFERENCES maps(id));
 
 # Testing database (needs updated)
 

@@ -410,7 +410,7 @@ impl MyDatabase {
     // ------------------ MAP FUNCTIONS -----------------
 
     /// Get maps for a user
-    /// TODO: Restrict based on maps visible to user, not
+    /// TODO: Restrict based on maps visible to user, not congregation
     pub async fn get_maps(
         &self,
         user_id: u32,
