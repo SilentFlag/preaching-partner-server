@@ -33,6 +33,92 @@ impl MyDatabase {
         Ok(MyDatabase { data: conn })
     }
 
+    // ------------------- CONGREGATION FUNCTIONS ----------
+
+    /// Get all congregations relevent to a particular user
+    ///
+    /// Parameters:
+    ///     user_id: Id of the user as found in the users table
+    ///     db: Reference to the database
+    ///
+    /// Return Value:
+    ///     Ok(Vec<CongDetails>): Returned when getting congregations is successful, vector of all relevent congregations
+    ///     Err(sqlx::Error): Returned when there is a problem with the database
+    ///
+    /// TODO: Handle event where user cong pair not updated but cong is. Set updated timestamps on pairs when updating cong?
+    pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis() as u64;
+
+        let query = sqlx::query(
+        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id").bind(&user_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut congregations: Vec<CongDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let cong_details = cong_row_to_details(row, timestamp);
+                    match cong_details {
+                        Ok(details) => {
+                            congregations.push(details);
+                        }
+                        Err(error) => {
+                            return Err(DbError::QueryFailure(error));
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(congregations)
+    }
+
+    /// Remove record of user being part of a congregation
+    /// TODO: Refine query to only delete where delete is checked
+    /// TODO: Handle case of no rows affected
+    pub async fn delete_user_cong_record(&self, user_id: u32, cong_id: u32) -> Result<(), DbError> {
+        let update_query =
+            sqlx::query("DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?")
+                .bind(&user_id)
+                .bind(cong_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+        Ok(())
+    }
+
+    /// TODO: Implement this, it will mark a congregation as deleted, mark all user_cong_pairs as deleted, and the actual row for the congregation in the database will be removed when someone syncs, removing their user_cong_pair and a check for any remaining user_cong_pair, if not, if cong is marked for deletion, it will be deleted
+    /// TODO: Delete any remaining congregation data
+    pub async fn delete_congregation(&self, cong_id: u32) -> Result<(), DbError> {
+        let update_query =
+            sqlx::query("UPDATE user_group_pair SET deleted = TRUE WHERE congregation_id = ?")
+                .bind(&cong_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+
+        let update_query =
+            sqlx::query("UPDATE congregation SET deleted = TRUE WHERE id = ?").bind(&cong_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+        Ok(())
+    }
+
     // ------------------- USER FUNCTIONS ------------------
 
     /// Get users updated since a time that are in the clients congs
@@ -237,72 +323,10 @@ impl MyDatabase {
         Ok(())
     }
 
-    // ------------------ CONGREGATION FUNCTIONS -----------------
-
-    /// Get all congregations relevent to a particular user
-    ///
-    /// Parameters:
-    ///     user_id: Id of the user as found in the users table
-    ///     db: Reference to the database
-    ///
-    /// Return Value:
-    ///     Ok(Vec<CongDetails>): Returned when getting congregations is successful, vector of all relevent congregations
-    ///     Err(sqlx::Error): Returned when there is a problem with the database
-    ///
-    pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis() as u64;
-
-        let query = sqlx::query(
-        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id").bind(&user_id);
-
-        let rows_result = query.fetch_all(&self.data).await;
-
-        let mut congregations: Vec<CongDetails> = vec![];
-
-        match rows_result {
-            Ok(rows) => {
-                for row in rows {
-                    let cong_details = cong_row_to_details(row, timestamp);
-                    match cong_details {
-                        Ok(details) => {
-                            congregations.push(details);
-                        }
-                        Err(error) => {
-                            return Err(DbError::QueryFailure(error));
-                        }
-                    }
-                }
-            }
-            Err(error) => {
-                return Err(DbError::QueryFailure(error));
-            }
-        }
-
-        Ok(congregations)
-    }
-
-    /// Remove record of user being part of a congregation
-    /// TODO: Refine query to only delete where delete is checked
-    /// TODO: Handle case of no rows affected
-    pub async fn delete_user_cong_record(&self, user_id: u32, cong_id: u32) -> Result<(), DbError> {
-        let update_query =
-            sqlx::query("DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?")
-                .bind(&user_id)
-                .bind(cong_id);
-
-        let rows_result = update_query.execute(&self.data).await;
-        if let Err(error) = rows_result {
-            return Err(DbError::QueryFailure(error));
-        }
-        Ok(())
-    }
-
     // ------------------ CATEGORY FUNCTIONS -----------------
 
-    // Get all categories updated after a timestamp
+    /// Get all categories updated after a timestamp
+    /// TODO: update to only fetch categories related to passed congregations
     pub async fn get_categories(
         &self,
         last_sync_vec: &Vec<u8>,
@@ -478,11 +502,10 @@ fn cong_row_to_details(row: SqliteRow, timestamp: u64) -> Result<CongDetails, sq
     let cong_id: u32 = row.try_get("congregation_id")?;
     let cong_name: String = row.try_get("name")?;
     let remove: bool = row.try_get("deleted")?;
-    let updated: u64 = 0;
+    let updated: u64 = row.try_get("updated")?;
     Ok(CongDetails {
         cong_id,
         cong_name,
-        timestamp,
         remove,
         updated,
     })
@@ -497,18 +520,20 @@ fn cong_row_to_details(row: SqliteRow, timestamp: u64) -> Result<CongDetails, sq
 ///     Ok(MapDetails): Category details from row returned when successful
 ///     Err(sqlx::Error): Error when getting the collumns, caused by row from the wrong table
 ///
-/// TODO: does CategoryDetails need a timestamp field?
+/// TODO: have a remove variable rather than something hard coded
 fn category_row_to_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Error> {
     let id = row.try_get("id")?;
     let name = row.try_get("name")?;
     let prefix = row.try_get("prefix")?;
     let congregation = row.try_get("congregation")?;
     let updated = row.try_get("updated")?;
+    let remove = false;
     Ok(CategoryDetails {
         id,
         name,
         prefix,
         congregation,
+        remove,
         updated,
     })
 }
@@ -583,6 +608,7 @@ fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
         image_name,
         assignee,
         assigner,
+        image: None,
         category,
     })
 }

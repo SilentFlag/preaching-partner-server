@@ -1,6 +1,6 @@
 # Database Schema
 
-CREATE TABLE congregation(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL);
+CREATE TABLE congregation(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, updated INTEGER, deleted BOOL);
 
 CREATE TABLE categories(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, prefix VARCHAR(255) NOT NULL, congregation INTEGER, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation) REFERENCES congregation(id));
 
@@ -16,7 +16,7 @@ CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category I
 
 CREATE TABLE tokens(user INTEGER NOT NULL, refresh BOOL NOT NULL, token VARCHAR(255) NOT NULL, CONSTRAINT fk_user FOREIGN KEY (user) REFERENCES users(id));
 
-CREATE TABLE addresses(id INTEGER PRIMARY KEY, map_id INTEGER, number VARCHAR(255), tags, visited BOOL, CONSTRAINT fk_map_id FOREIGN KEY (map_id) REFERENCES maps(id));
+CREATE TABLE addresses(id INTEGER PRIMARY KEY, map_id INTEGER, number VARCHAR(255), tags BLOB, visited BOOL, CONSTRAINT fk_map_id FOREIGN KEY (map_id) REFERENCES maps(id));
 
 # Testing database (needs updated)
 

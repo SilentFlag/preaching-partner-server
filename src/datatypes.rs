@@ -1,3 +1,5 @@
+// TODO: Documentation
+
 use rand::rngs::SysError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -53,25 +55,29 @@ pub enum ServerPayload {
         updated: u64,
         deleted: bool,
     },
+    SyncInformation(SyncInformation),
     SyncComplete,
     UnknownError,
 }
 
 // The following structs are for syncing
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MapDetails {
     pub image_name: String,
     pub assignee: u32,
     pub assigner: u32,
+    pub image: Option<Vec<u8>>,
     pub category: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AddressTags {
     DoNotCall,
     NoJunkMail,
     Custom(String),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AddressDetails {
     pub id: u32,
     pub map_id: u32,
@@ -79,22 +85,26 @@ pub struct AddressDetails {
     pub tags: Vec<AddressTags>,
     pub visited: bool,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CongDetails {
     pub cong_id: u32,
     pub cong_name: String,
-    pub timestamp: u64,
     pub remove: bool,
     pub updated: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CategoryDetails {
     pub id: u32,
     pub name: String,
     pub prefix: String,
     pub congregation: u32,
     pub updated: u64,
+    pub remove: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GroupDetails {
     pub id: u32,
     pub name: String,
@@ -105,11 +115,20 @@ pub struct GroupDetails {
     pub pair_deleted: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct UserPublicDetails {
     pub id: u32,
     pub name: String,
     pub cong: u32,
     pub updated: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SyncInformation {
+    pub congregations: Vec<CongDetails>,
+    pub categories: Vec<CategoryDetails>,
+    pub service_groups: Vec<GroupDetails>,
+    pub users: Vec<UserPublicDetails>,
 }
 
 /// All errors relating to MyDatabase
