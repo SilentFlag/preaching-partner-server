@@ -47,7 +47,7 @@ impl MyDatabase {
     /// TODO: Handle event where user cong pair not updated but cong is. Set updated timestamps on pairs when updating cong?
     pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
         let query = sqlx::query(
-        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id").bind(&user_id);
+        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id WHERE user_id = ? ").bind(&user_id);
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -122,7 +122,7 @@ impl MyDatabase {
         user_id: u32,
     ) -> Result<Vec<UserPublicDetails>, DbError> {
         let query =
-            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id FROM users WHERE users.updated > ? AND WHERE user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?) INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id")
+            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE users.updated > ? AND user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
                 .bind(last_sync_vec)
                 .bind(user_id);
 
@@ -441,7 +441,7 @@ impl MyDatabase {
         last_sync_vec: &Vec<u8>,
     ) -> Result<Vec<MapDetails>, DbError> {
         let get_maps_query =
-            sqlx::query("SELECT * FROM maps WHERE updated >= ? AND congregation IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
+            sqlx::query("SELECT * FROM maps WHERE updated >= ? AND congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
                 .bind(hex::encode(last_sync_vec))
                 .bind(user_id);
 

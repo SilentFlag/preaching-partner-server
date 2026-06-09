@@ -117,7 +117,10 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
                     ClientPayload::UpdateCheckbox { .. } => {}
                     ClientPayload::UpdateCheckboxDetails { .. } => {}
                     ClientPayload::RequestSync(time) => {
-                        let _ = sync::sync_user(db.clone(), &mut write, time, id).await;
+                        let sync_result = sync::sync_user(db.clone(), &mut write, time, id).await;
+                        if let Err(error) = sync_result {
+                            println!("an error occured while syncing: {}", error);
+                        }
                     }
                     ClientPayload::SetLowDataMode(..) => {}
                 }

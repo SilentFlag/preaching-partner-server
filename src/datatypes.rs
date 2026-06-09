@@ -142,6 +142,7 @@ pub enum DbError {
     TokenRngFailure(SysError),
     AddressFailure(AddressError),
     UnknownError(sqlx::Error),
+    Error,
 }
 
 impl fmt::Display for DbError {
@@ -165,6 +166,7 @@ impl fmt::Display for DbError {
                 write!(f, "something went wrong with the addresses: {}", error)
             }
             DbError::UnknownError(error) => write!(f, "an unknown error occured: {}", error),
+            DbError::Error => write!(f, "a dberror::error error occured"),
         }
     }
 }
