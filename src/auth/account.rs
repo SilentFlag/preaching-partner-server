@@ -56,7 +56,6 @@ pub async fn roll_access_token(
     // Get id of user to be updated
 
     let user_id = db.fetch_user_from_refresh_token(refresh_token).await?;
-
     let mut rng = SysRng;
     let mut new_token = [0u8; 32];
     let token_result = rng.try_fill_bytes(&mut new_token); // TODO: handle fail of filling bytes

@@ -31,7 +31,16 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
 
     while let Some(msg) = read.next().await {
         // TODO: handle corrupt messages
-        let msg = msg.unwrap();
+        let msg = match msg {
+            Ok(msg) => msg,
+            Err(error) => {
+                eprintln!(
+                    "Something went wrong with the recieved message: {:?}",
+                    error
+                );
+                continue;
+            }
+        };
         match msg {
             Message::Binary(bin) => {
                 let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
@@ -39,10 +48,12 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
 
                 match decoded.payload {
                     ClientPayload::Login { name, password } => {
+                        println!("Attempting login");
                         let login_attempt: Result<u32, DbError> =
                             account::login(name, password, db.clone()).await;
                         let login_detail = match login_attempt {
                             Ok(result) => {
+                                println!("succeedded login");
                                 let refresh_token =
                                     account::roll_refresh_token(result, db.clone()).await;
                                 match refresh_token {
@@ -57,15 +68,25 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
                                                 Some(access_token),
                                             )),
                                             // TODO: Handle error
-                                            Err(_) => None,
+                                            Err(error) => {
+                                                println!(
+                                                    "Error happened at access token: {}",
+                                                    error
+                                                );
+                                                None
+                                            }
                                         }
                                     }
                                     // TODO: Handle error
-                                    Err(_) => None,
+                                    Err(_) => {
+                                        println!("database error with refresh token");
+                                        None
+                                    }
                                 }
                             }
                             Err(_) => Some((false, None, None)),
                         };
+                        println!("got through login logic");
                         // TODO: handle the error of time going before UNIX_EPOCH, set time to 0?
                         let timestamp = SystemTime::now()
                             .duration_since(UNIX_EPOCH)

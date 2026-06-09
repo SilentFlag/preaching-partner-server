@@ -1,9 +1,9 @@
 use crate::database::MyDatabase;
 use crate::datatypes::{
-    AddressDetails, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage,
-    ServerPayload, SyncInformation, UserPublicDetails,
+    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage, ServerPayload,
+    SyncInformation, UserPublicDetails,
 };
-use futures_util::stream::SplitSink;
+use futures_util::{SinkExt, stream::SplitSink};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::net::TcpStream;
@@ -28,7 +28,7 @@ pub async fn sync_user(
     let sync_vector = rmp_serde::to_vec(&last_sync);
     match sync_vector {
         Ok(sync_vec) => {
-            let _current_time = SystemTime::now()
+            let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards")
                 .as_millis() as u64;
@@ -43,12 +43,25 @@ pub async fn sync_user(
 
             let _sync_maps_result = sync_maps(&sync_vec, id, db.clone()).await?;
 
-            let _sync_details = SyncInformation {
+            let sync_details = SyncInformation {
                 congregations,
                 categories,
                 service_groups,
                 users,
             };
+
+            // TODO: send information to user
+            let message = ServerMessage {
+                id,
+                timestamp,
+                payload: ServerPayload::SyncInformation(sync_details),
+            };
+            let message_bytes = rmp_serde::to_vec(&message).unwrap();
+            let _ = write
+                .send(tokio_tungstenite::tungstenite::Message::binary(
+                    message_bytes,
+                ))
+                .await;
         }
         Err(_) => {
             //TODO: Something
@@ -74,9 +87,10 @@ pub async fn sync_user(
 ///
 /// TODO: Add compatibility with ability to delete congregations
 /// TODO: Update congregation vector to remove deleted congs and return that also
+/// TODO: use last_sync
 async fn sync_congregations(
     user_id: u32,
-    last_sync: u64,
+    _last_sync: u64,
     db: MyDatabase,
 ) -> Result<Vec<CongDetails>, DbError> {
     let congregations_result = db.get_congregations(user_id).await;
@@ -102,9 +116,10 @@ async fn sync_congregations(
 ///     Err(sqlx::Error) is returned when there is a problem with the database
 ///
 /// TODO: Add compatibility with ability to delete categories
+/// TODO: Use congregations
 async fn sync_categories(
     last_sync_vec: &Vec<u8>,
-    congregations: &Vec<CongDetails>,
+    _congregations: &Vec<CongDetails>,
     _user_id: u32,
     db: MyDatabase,
 ) -> Result<Vec<CategoryDetails>, DbError> {

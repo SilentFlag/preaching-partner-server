@@ -6,7 +6,6 @@ use crate::datatypes::{
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
 pub struct MyDatabase {
@@ -47,11 +46,6 @@ impl MyDatabase {
     ///
     /// TODO: Handle event where user cong pair not updated but cong is. Set updated timestamps on pairs when updating cong?
     pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis() as u64;
-
         let query = sqlx::query(
         "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair WHERE user_id = ? INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id").bind(&user_id);
 
@@ -62,7 +56,7 @@ impl MyDatabase {
         match rows_result {
             Ok(rows) => {
                 for row in rows {
-                    let cong_details = cong_row_to_details(row, timestamp);
+                    let cong_details = cong_row_to_details(row);
                     match cong_details {
                         Ok(details) => {
                             congregations.push(details);
@@ -162,9 +156,14 @@ impl MyDatabase {
         user_token: [u8; 32],
     ) -> Result<u32, DbError> {
         let user_id: u32;
+
+        let mut hasher = Blake2b512::new();
+        hasher.update(user_token);
+        let token_hash = hasher.finalize();
+
         let get_user_id_query =
-            sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = true)")
-                .bind(hex::encode(&user_token));
+            sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = true")
+                .bind(hex::encode(&token_hash));
 
         let rows_result = get_user_id_query.fetch_all(&self.data).await;
         match rows_result {
@@ -305,6 +304,7 @@ impl MyDatabase {
         let query_result = insert_token_query.execute(&self.data).await;
 
         if let Err(result) = query_result {
+            println!("failure happened at query: {:?}", result);
             return Err(DbError::QueryFailure(result));
         }
 
@@ -498,7 +498,7 @@ impl MyDatabase {
 // ---------------- Helper functions --------------
 
 /// Convert a row of the congregations table to the CongDetails datatype
-fn cong_row_to_details(row: SqliteRow, timestamp: u64) -> Result<CongDetails, sqlx::Error> {
+fn cong_row_to_details(row: SqliteRow) -> Result<CongDetails, sqlx::Error> {
     let cong_id: u32 = row.try_get("congregation_id")?;
     let cong_name: String = row.try_get("name")?;
     let remove: bool = row.try_get("deleted")?;
