@@ -3,7 +3,7 @@ use crate::datatypes::{
     CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage, ServerPayload,
     SyncInformation, UserPublicDetails,
 };
-use core::sync;
+// use core::sync;
 use futures_util::{SinkExt, stream::SplitSink};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,57 +21,45 @@ type WsSink = SplitSink<WsStream, Message>;
 pub async fn sync_user(
     db: MyDatabase,
     write: &mut WsSink,
-    last_sync: u64,
+    last_sync: u32,
     id: u32,
 ) -> Result<(), DbError> {
     // Select all the images from the database that have been updated since the last sync time
-    let sync_vector = rmp_serde::to_vec(&last_sync);
-    match sync_vector {
-        Ok(sync_vec) => {
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_millis() as u64;
 
-            println!("starting getting info");
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs() as u32;
 
-            let congregations = sync_congregations(id, last_sync, db.clone()).await?;
-            println!("getting info 1");
-            let categories = sync_categories(&sync_vec, &congregations, id, db.clone()).await?;
-            println!("getting info 2");
-            let service_groups = sync_service_groups(id, last_sync, db.clone()).await?;
-            println!("getting info 3");
-            let users = sync_users(&sync_vec, id, db.clone()).await?;
-            println!("getting info 4");
-            let _sync_maps_result = sync_maps(&sync_vec, id, db.clone()).await?;
-            println!("getting info 5");
-            let sync_details = SyncInformation {
-                congregations,
-                categories,
-                service_groups,
-                users,
-            };
-            // TODO: send information to user
-            println!("sending sync info");
-            let message = ServerMessage {
-                id,
-                timestamp,
-                payload: ServerPayload::SyncInformation(sync_details),
-            };
-            let message_bytes = rmp_serde::to_vec(&message).expect("failed to encode sync message");
-            let _ = write
-                .send(tokio_tungstenite::tungstenite::Message::binary(
-                    message_bytes,
-                ))
-                .await;
-            Ok(())
-        }
-        Err(_) => {
-            //TODO: Something
-            println!("Error happened 1837");
-            Err(DbError::Error)
-        }
-    }
+    let congregations = sync_congregations(id, last_sync, db.clone()).await?;
+
+    let categories = sync_categories(last_sync, &congregations, id, db.clone()).await?;
+
+    let service_groups = sync_service_groups(id, last_sync, db.clone()).await?;
+
+    let users = sync_users(last_sync, id, db.clone()).await?;
+
+    let _sync_maps_result = sync_maps(last_sync, id, db.clone()).await?;
+
+    let sync_details = SyncInformation {
+        congregations,
+        categories,
+        service_groups,
+        users,
+    };
+
+    let message = ServerMessage {
+        id,
+        timestamp,
+        payload: ServerPayload::SyncInformation(sync_details),
+    };
+    let message_bytes = rmp_serde::to_vec(&message).expect("failed to encode sync message");
+    let _ = write
+        .send(tokio_tungstenite::tungstenite::Message::binary(
+            message_bytes,
+        ))
+        .await;
+    Ok(())
 }
 
 /// Sync the client's database of congregations as they are in the database on the server
@@ -93,7 +81,7 @@ pub async fn sync_user(
 /// TODO: use last_sync
 async fn sync_congregations(
     user_id: u32,
-    _last_sync: u64,
+    _last_sync: u32,
     db: MyDatabase,
 ) -> Result<Vec<CongDetails>, DbError> {
     let congregations_result = db.get_congregations(user_id).await;
@@ -121,7 +109,7 @@ async fn sync_congregations(
 /// TODO: Add compatibility with ability to delete categories
 /// TODO: Use congregations
 async fn sync_categories(
-    last_sync_vec: &Vec<u8>,
+    last_sync_vec: u32,
     _congregations: &Vec<CongDetails>,
     _user_id: u32,
     db: MyDatabase,
@@ -143,9 +131,10 @@ async fn sync_categories(
 ///     Ok(()): Sync Successful
 ///     Err(sqlx::Error): Something went wrong
 ///
+/// TODO: get_groups() function accept last_sync and use that in sql query rather than filter after
 async fn sync_service_groups(
     user_id: u32,
-    last_sync: u64,
+    last_sync: u32,
     db: MyDatabase,
 ) -> Result<Vec<GroupDetails>, DbError> {
     let groups = db.get_groups(user_id).await?;
@@ -171,10 +160,11 @@ async fn sync_service_groups(
 /// TODO: Write this function
 /// Should the sync users only sync requested users to protect privacy? It won't protect much as all people of a congregation will know each other already
 async fn sync_users(
-    last_sync_vec: &Vec<u8>,
+    last_sync_vec: u32,
     user_id: u32,
     db: MyDatabase,
 ) -> Result<Vec<UserPublicDetails>, DbError> {
+    println!("getting users, {:?}, {}", last_sync_vec, user_id);
     let users = db.get_users(last_sync_vec, user_id).await?;
     Ok(users)
 }
@@ -193,12 +183,8 @@ async fn sync_users(
 ///
 /// TODO: Update to get maps only for the persons congregation, add congregation vector
 /// TODO: Handle error that get_map_details() returns
-async fn sync_maps(
-    sync_vec: &Vec<u8>,
-    id: u32,
-    db: MyDatabase,
-) -> Result<Vec<MapDetails>, DbError> {
-    let maps = db.get_maps(id, sync_vec).await?;
+async fn sync_maps(last_sync: u32, id: u32, db: MyDatabase) -> Result<Vec<MapDetails>, DbError> {
+    let maps = db.get_maps(id, last_sync).await?;
 
     let mut complete_maps = vec![];
     // Send Data

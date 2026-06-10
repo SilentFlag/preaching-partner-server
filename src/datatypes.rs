@@ -17,13 +17,13 @@ pub enum ClientPayload {
     UpdateCheckbox { map: i32, id: i32, checked: bool },
     UpdateCheckboxDetails { map: i32, id: i32, name: String },
     SetLowDataMode(bool),
-    RequestSync(u64),
+    RequestSync(u32),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerMessage {
     pub id: u32,
-    pub timestamp: u64,
+    pub timestamp: u32,
     pub payload: ServerPayload,
 }
 
@@ -52,7 +52,7 @@ pub enum ServerPayload {
         name: String,
         cong: u32,
         elder: u32,
-        updated: u64,
+        updated: u32,
         deleted: bool,
     },
     SyncInformation(SyncInformation),
@@ -91,7 +91,7 @@ pub struct CongDetails {
     pub cong_id: u32,
     pub cong_name: String,
     pub remove: bool,
-    pub updated: u64,
+    pub updated: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -100,7 +100,7 @@ pub struct CategoryDetails {
     pub name: String,
     pub prefix: String,
     pub congregation: u32,
-    pub updated: u64,
+    pub updated: u32,
     pub remove: bool,
 }
 
@@ -110,7 +110,7 @@ pub struct GroupDetails {
     pub name: String,
     pub cong: u32,
     pub elder: u32,
-    pub updated: u64,
+    pub updated: u32,
     pub group_deleted: bool,
     pub pair_deleted: bool,
 }
@@ -120,7 +120,7 @@ pub struct UserPublicDetails {
     pub id: u32,
     pub name: String,
     pub cong: u32,
-    pub updated: u64,
+    pub deleted: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

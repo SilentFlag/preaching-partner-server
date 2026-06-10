@@ -116,13 +116,14 @@ impl MyDatabase {
     // ------------------- USER FUNCTIONS ------------------
 
     /// Get users updated since a time that are in the clients congs
+    /// TODO: Update? I don't think it is nessacary to send all users to the client
     pub async fn get_users(
         &self,
-        last_sync_vec: &Vec<u8>,
+        last_sync_vec: u32,
         user_id: u32,
     ) -> Result<Vec<UserPublicDetails>, DbError> {
         let query =
-            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE users.updated > ? AND user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
+            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id, users.deleted FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE users.updated >= ? AND user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
                 .bind(last_sync_vec)
                 .bind(user_id);
 
@@ -327,12 +328,9 @@ impl MyDatabase {
 
     /// Get all categories updated after a timestamp
     /// TODO: update to only fetch categories related to passed congregations
-    pub async fn get_categories(
-        &self,
-        last_sync_vec: &Vec<u8>,
-    ) -> Result<Vec<CategoryDetails>, DbError> {
-        let get_maps_query = sqlx::query("SELECT * FROM categories WHERE updated >= ?")
-            .bind(hex::encode(last_sync_vec));
+    pub async fn get_categories(&self, last_sync: u32) -> Result<Vec<CategoryDetails>, DbError> {
+        let get_maps_query =
+            sqlx::query("SELECT * FROM categories WHERE updated >= ?").bind(last_sync);
 
         let rows_result = get_maps_query.fetch_all(&self.data).await;
 
@@ -358,7 +356,7 @@ impl MyDatabase {
 
     // Get all groups for a user
     pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
-        let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation  FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
+        let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
         .bind(&user_id);
 
         let rows_result = query.fetch_all(&self.data).await;
@@ -435,14 +433,10 @@ impl MyDatabase {
 
     /// Get maps for a user
     /// TODO: Restrict based on maps visible to user, not congregation
-    pub async fn get_maps(
-        &self,
-        user_id: u32,
-        last_sync_vec: &Vec<u8>,
-    ) -> Result<Vec<MapDetails>, DbError> {
+    pub async fn get_maps(&self, user_id: u32, last_sync: u32) -> Result<Vec<MapDetails>, DbError> {
         let get_maps_query =
             sqlx::query("SELECT * FROM maps WHERE updated >= ? AND congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
-                .bind(hex::encode(last_sync_vec))
+                .bind(last_sync)
                 .bind(user_id);
 
         let rows_result = get_maps_query.fetch_all(&self.data).await;
@@ -502,7 +496,7 @@ fn cong_row_to_details(row: SqliteRow) -> Result<CongDetails, sqlx::Error> {
     let cong_id: u32 = row.try_get("congregation_id")?;
     let cong_name: String = row.try_get("name")?;
     let remove: bool = row.try_get("deleted")?;
-    let updated: u64 = row.try_get("updated")?;
+    let updated: u32 = row.try_get("updated")?;
     Ok(CongDetails {
         cong_id,
         cong_name,
@@ -553,15 +547,15 @@ fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
     let name: String = row.try_get("name")?;
     let cong: u32 = row.try_get("congregation")?;
     let elder: u32 = row.try_get("elder")?;
-    let group_updated: u64 = row.try_get("group_updated")?;
-    let pair_updated: u64 = row.try_get("pair_updated")?;
-    let updated: u64 = if group_updated > pair_updated {
+    let group_updated: u32 = row.try_get("group_updated")?;
+    let pair_updated: u32 = row.try_get("pair_updated")?;
+    let updated: u32 = if group_updated > pair_updated {
         group_updated
     } else {
         pair_updated
     };
-    let group_deleted: bool = row.try_get("delted")?;
-    let pair_deleted: bool = row.try_get("pair_delted")?;
+    let group_deleted: bool = row.try_get("group_deleted")?;
+    let pair_deleted: bool = row.try_get("pair_deleted")?;
     Ok(GroupDetails {
         id,
         name,
@@ -578,14 +572,14 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
     let id = row.try_get("id")?;
     let firstname: String = row.try_get("firstname")?;
     let lastname: String = row.try_get("lastname")?;
-    let updated: u64 = row.try_get("updated")?;
+    let deleted: bool = row.try_get("deleted")?;
     let cong: u32 = row.try_get("congregation_id")?;
     let name = format!("{} {}", firstname, lastname);
     Ok(UserPublicDetails {
         id,
         name,
         cong,
-        updated,
+        deleted,
     })
 }
 

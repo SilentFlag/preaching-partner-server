@@ -91,7 +91,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
                         let timestamp = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .expect("Time went backwards")
-                            .as_millis() as u64;
+                            .as_secs() as u32;
                         let message = ServerMessage {
                             id,
                             timestamp,
