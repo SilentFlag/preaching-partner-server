@@ -29,34 +29,12 @@ pub struct ServerMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServerPayload {
-    Confirm(bool),
     ConfirmLogin {
         success: bool,
         refresh_token: Option<[u8; 32]>,
         access_token: Option<[u8; 32]>,
     },
-    MapImage {
-        image_name: String,
-        image: Vec<u8>,
-        assignee: u32,
-        assigner: u32,
-        category: u32,
-    },
-    SyncCong {
-        cong_id: u32,
-        cong_name: String,
-        remove: bool,
-    },
-    SyncGroup {
-        id: u32,
-        name: String,
-        cong: u32,
-        elder: u32,
-        updated: u32,
-        deleted: bool,
-    },
     SyncInformation(SyncInformation),
-    SyncComplete,
     UnknownError,
 }
 
