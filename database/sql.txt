@@ -13,13 +13,13 @@ CREATE TABLE user_cong_pair(user_id INTEGER, congregation_id INTEGER, deleted BO
 
 CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL NOT NULL, updated INTEGER, CONSTRAINT fk_group_id FOREIGN KEY (group_id) REFERENCES service_group(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
-CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category INT NOT NULL, file_name VARCHAR(255), updated INTEGER, congregation_id INTEGER, CONSTRAINT fk_category FOREIGN KEY (category) REFERENCES categories(id), CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id));
+CREATE TABLE maps(id INTEGER PRIMARY KEY, assignee INT, assigner INT, category INT NOT NULL, file_name VARCHAR(255), updated INTEGER, congregation_id INTEGER, deleted BOOL, CONSTRAINT fk_category FOREIGN KEY (category) REFERENCES categories(id), CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id));
 
 CREATE TABLE tokens(user INTEGER NOT NULL, refresh BOOL NOT NULL, token VARCHAR(255) NOT NULL, CONSTRAINT fk_user FOREIGN KEY (user) REFERENCES users(id));
 
-CREATE TABLE street(id INTEGER PRIMARY KEY, map_id, name VARCHAR(255), CONSTRAINT fk_map_id FOREIGN KEY (map_id) REFERENCES maps(id));
+CREATE TABLE streets(id INTEGER PRIMARY KEY, map_id, name VARCHAR(255), deleted BOOL NOT NULL, CONSTRAINT fk_map_id FOREIGN KEY (map_id) REFERENCES maps(id));
 
-CREATE TABLE addresses(id INTEGER PRIMARY KEY, street_id INTEGER, number VARCHAR(255), tags BLOB, visited BOOL, CONSTRAINT fk_street_id FOREIGN KEY (street_id) REFERENCES street(id));
+CREATE TABLE addresses(id INTEGER PRIMARY KEY, street_id INTEGER, number VARCHAR(255), tags BLOB, visited BOOL NOT NULL, deleted BOOL NOT NULL, CONSTRAINT fk_street_id FOREIGN KEY (street_id) REFERENCES streets(id));
 
 # Testing database (needs updated)
 
@@ -53,32 +53,32 @@ INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(4,2,fals
 INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(5,1,false,0);
 INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(6,1,false,0);
 
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't01.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't02.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't03.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't04.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't05.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 1, 't06.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 2, 'c01.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 2, 'c02.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 2, 'c03.png', 0, 1);
-INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id) VALUES(NULL, NULL, 2, 'c04.png', 0, 1);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't01.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't02.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't03.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't04.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't05.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 1, 't06.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 2, 'c01.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 2, 'c02.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 2, 'c03.png', 0, 1, false);
+INSERT INTO maps(assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES(NULL, NULL, 2, 'c04.png', 0, 1, false);
 
-INSERT INTO street(map_id, name) VALUES(1, 'Oakridge Drive');
-INSERT INTO street(map_id, name) VALUES(1, 'Pineridge Road');
-INSERT INTO street(map_id, name) VALUES(1, 'Willow Lane');
-INSERT INTO street(map_id, name) VALUES(1, 'Brookview Drive');
-INSERT INTO street(map_id, name) VALUES(1, 'Meadoview Court');
+INSERT INTO streets(map_id, name, deleted) VALUES(1, 'Oakridge Drive', false);
+INSERT INTO streets(map_id, name, deleted) VALUES(1, 'Pineridge Road', false);
+INSERT INTO streets(map_id, name, deleted) VALUES(1, 'Willow Lane', false);
+INSERT INTO streets(map_id, name, deleted) VALUES(1, 'Brookview Drive', false);
+INSERT INTO streets(map_id, name, deleted) VALUES(1, 'Meadoview Court', false);
 
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '1', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '2', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '3', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '4a', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '4b', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(1, '5', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '1', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '2', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '3', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '4', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '5', false);
-INSERT INTO addresses(street_id, number, visited) VALUES(2, '6', false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '1', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '2', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '3', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '4a', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '4b', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(1, '5', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '1', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '2', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '3', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '4', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '5', false, false);
+INSERT INTO addresses(street_id, number, visited, deleted) VALUES(2, '6', false, false);

@@ -1,12 +1,12 @@
 use crate::database::MyDatabase;
 use crate::datatypes::{
-    CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage, ServerPayload,
-    SyncInformation, UserPublicDetails,
+    AddressDetails, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage,
+    ServerPayload, StreetDetails, SyncInformation, UserPublicDetails,
 };
 // use core::sync;
 use futures_util::{SinkExt, stream::SplitSink};
-use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, vec};
 use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
@@ -33,19 +33,29 @@ pub async fn sync_user(
 
     let congregations = sync_congregations(id, last_sync, db.clone()).await?;
 
-    let categories = sync_categories(last_sync, &congregations, id, db.clone()).await?;
+    let categories = sync_categories(last_sync, &congregations, db.clone()).await?;
 
     let service_groups = sync_service_groups(id, last_sync, db.clone()).await?;
 
     let users = sync_users(last_sync, id, db.clone()).await?;
 
-    let _sync_maps_result = sync_maps(last_sync, id, db.clone()).await?;
+    // TODO Get maps, streets, and addresses
+    let maps = sync_maps(last_sync, id, db.clone()).await?;
 
+    let streets = sync_streets(last_sync, &maps, db.clone()).await?;
+
+    // TODO: Not sync addresses?
+    let addresses = sync_addresses(last_sync, &streets, db.clone()).await?;
+
+    println!("Preparing message");
     let sync_details = SyncInformation {
         congregations,
         categories,
         service_groups,
         users,
+        maps,
+        streets,
+        addresses,
     };
 
     let message = ServerMessage {
@@ -59,6 +69,7 @@ pub async fn sync_user(
             message_bytes,
         ))
         .await;
+    println!("sent message");
     Ok(())
 }
 
@@ -111,7 +122,6 @@ async fn sync_congregations(
 async fn sync_categories(
     last_sync_vec: u32,
     _congregations: &Vec<CongDetails>,
-    _user_id: u32,
     db: MyDatabase,
 ) -> Result<Vec<CategoryDetails>, DbError> {
     // TODO: update get_categories function
@@ -157,14 +167,13 @@ async fn sync_service_groups(
     Ok(groups)
 }
 
-/// TODO: Write this function
+///
 /// Should the sync users only sync requested users to protect privacy? It won't protect much as all people of a congregation will know each other already
 async fn sync_users(
     last_sync_vec: u32,
     user_id: u32,
     db: MyDatabase,
 ) -> Result<Vec<UserPublicDetails>, DbError> {
-    println!("getting users, {:?}, {}", last_sync_vec, user_id);
     let users = db.get_users(last_sync_vec, user_id).await?;
     Ok(users)
 }
@@ -191,16 +200,39 @@ async fn sync_maps(last_sync: u32, id: u32, db: MyDatabase) -> Result<Vec<MapDet
     for map_details in maps {
         let image_file = fs::read(format!("maps/{}", map_details.image_name));
         // TODO: handle Err Result
-        if let Ok(image) = image_file {
-            complete_maps.push(MapDetails {
-                image_name: map_details.image_name,
-                assignee: map_details.assignee,
-                assigner: map_details.assigner,
-                image: Some(image),
-                category: map_details.category,
-            });
-        }
+        complete_maps.push(MapDetails {
+            id: map_details.id,
+            image_name: map_details.image_name,
+            assignee: map_details.assignee,
+            assigner: map_details.assigner,
+            image: if let Ok(image) = image_file {
+                Some(image)
+            } else {
+                None
+            },
+            category: map_details.category,
+            deleted: map_details.deleted,
+        });
     }
-
     return Ok(complete_maps);
+}
+
+// TODO: Be more selective in streets, give map id?
+async fn sync_streets(
+    _lasy_sync: u32,
+    _maps: &Vec<MapDetails>,
+    db: MyDatabase,
+) -> Result<Vec<StreetDetails>, DbError> {
+    let streets = db.get_streets().await?;
+    Ok(streets)
+}
+
+// TODO: be more selective, map id or street id?
+async fn sync_addresses(
+    _last_sync: u32,
+    _streets: &Vec<StreetDetails>,
+    db: MyDatabase,
+) -> Result<Vec<AddressDetails>, DbError> {
+    let addresses = db.get_addresses().await?;
+    Ok(addresses)
 }

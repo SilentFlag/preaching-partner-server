@@ -1,11 +1,11 @@
 // use argon2::password_hash;
 use crate::datatypes::{
     AddressDetails, AddressError, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails,
-    UserPublicDetails,
+    StreetDetails, UserPublicDetails,
 };
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
-use std::str::FromStr;
+use std::{str::FromStr, vec};
 
 #[derive(Clone)]
 pub struct MyDatabase {
@@ -123,7 +123,7 @@ impl MyDatabase {
         user_id: u32,
     ) -> Result<Vec<UserPublicDetails>, DbError> {
         let query =
-            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, user_cong_pair.congregation_id, users.deleted FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE users.updated >= ? AND user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
+            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.updated, users.deleted FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE users.updated >= ? AND user_cong_pair.congregation_id IN (SELECT congregation_id FROM user_cong_pair WHERE user_id = ?)")
                 .bind(last_sync_vec)
                 .bind(user_id);
 
@@ -305,7 +305,6 @@ impl MyDatabase {
         let query_result = insert_token_query.execute(&self.data).await;
 
         if let Err(result) = query_result {
-            println!("failure happened at query: {:?}", result);
             return Err(DbError::QueryFailure(result));
         }
 
@@ -456,13 +455,40 @@ impl MyDatabase {
             Err(error) => return Err(DbError::QueryFailure(error)),
         }
 
-        Ok(vec![])
+        Ok(maps)
     }
 
-    pub async fn get_addresses(&self, map_id: u32) -> Result<Vec<AddressDetails>, DbError> {
-        let query =
-            sqlx::query("SELECT id, map_id, number, tags, visited FROM addresses WHERE map_id = ?")
-                .bind(map_id);
+    // TODO: be more selective
+    pub async fn get_streets(&self) -> Result<Vec<StreetDetails>, DbError> {
+        let query = sqlx::query("SELECT * FROM streets");
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut streets: Vec<StreetDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let street_details = street_row_to_details(row);
+                    match street_details {
+                        Ok(user_details) => {
+                            streets.push(user_details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(streets)
+    }
+
+    // TODO: be more selective
+    pub async fn get_addresses(&self) -> Result<Vec<AddressDetails>, DbError> {
+        let query = sqlx::query("SELECT * FROM addresses");
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -573,14 +599,8 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
     let firstname: String = row.try_get("firstname")?;
     let lastname: String = row.try_get("lastname")?;
     let deleted: bool = row.try_get("deleted")?;
-    let cong: u32 = row.try_get("congregation_id")?;
     let name = format!("{} {}", firstname, lastname);
-    Ok(UserPublicDetails {
-        id,
-        name,
-        cong,
-        deleted,
-    })
+    Ok(UserPublicDetails { id, name, deleted })
 }
 
 /// Given a SqliteRow, return the details of the map
@@ -594,31 +614,54 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
 ///
 /// TODO: Put in the column names
 fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
     let image_name: String = row.try_get("file_name")?;
     let assignee: u32 = row.try_get("assignee")?;
     let assigner: u32 = row.try_get("assigner")?;
     let category: u32 = row.try_get("category")?;
+    let deleted = row.try_get("deleted")?;
     Ok(MapDetails {
+        id,
         image_name,
         assignee,
         assigner,
         image: None,
         category,
+        deleted,
+    })
+}
+
+fn street_row_to_details(row: SqliteRow) -> Result<StreetDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let map_id = row.try_get("map_id")?;
+    let name = row.try_get("name")?;
+    let deleted = row.try_get("deleted")?;
+    Ok(StreetDetails {
+        id,
+        map_id,
+        name,
+        deleted,
     })
 }
 
 fn get_address_details(row: SqliteRow) -> Result<AddressDetails, AddressError> {
     let id = row.try_get("id")?;
-    let map_id = row.try_get("map_id")?;
+    let street_id = row.try_get("street_id")?;
     let number = row.try_get("number")?;
     let tags_serialised: Vec<u8> = row.try_get("tags")?;
-    let tags = rmp_serde::from_slice(&tags_serialised)?;
+    let tags = if tags_serialised.len() != 0 {
+        rmp_serde::from_slice(&tags_serialised)?
+    } else {
+        vec![]
+    };
     let visited: bool = row.try_get("visited")?;
+    let deleted = row.try_get("deleted")?;
     Ok(AddressDetails {
         id,
-        map_id,
+        street_id,
         number,
         tags,
         visited,
+        deleted,
     })
 }

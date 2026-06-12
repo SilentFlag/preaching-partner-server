@@ -38,33 +38,45 @@ pub enum ServerPayload {
     UnknownError,
 }
 
-// The following structs are for syncing
-#[derive(Serialize, Deserialize, Debug)]
+// Sync info
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MapDetails {
+    pub id: u32,
     pub image_name: String,
     pub assignee: u32,
     pub assigner: u32,
     pub image: Option<Vec<u8>>,
     pub category: u32,
+    pub deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AddressTags {
     DoNotCall,
     NoJunkMail,
     Custom(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+// TODO: use
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AddressDetails {
     pub id: u32,
-    pub map_id: u32,
+    pub street_id: u32,
     pub number: String,
     pub tags: Vec<AddressTags>,
     pub visited: bool,
+    pub deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StreetDetails {
+    pub id: u32,
+    pub map_id: u32,
+    pub name: String,
+    pub deleted: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CongDetails {
     pub cong_id: u32,
     pub cong_name: String,
@@ -72,7 +84,7 @@ pub struct CongDetails {
     pub updated: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CategoryDetails {
     pub id: u32,
     pub name: String,
@@ -82,22 +94,21 @@ pub struct CategoryDetails {
     pub remove: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GroupDetails {
     pub id: u32,
     pub name: String,
     pub cong: u32,
     pub elder: u32,
     pub updated: u32,
-    pub group_deleted: bool,
+    pub group_deleted: bool, // TODO: Condense into one deleted variable
     pub pair_deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserPublicDetails {
     pub id: u32,
     pub name: String,
-    pub cong: u32,
     pub deleted: bool,
 }
 
@@ -107,6 +118,9 @@ pub struct SyncInformation {
     pub categories: Vec<CategoryDetails>,
     pub service_groups: Vec<GroupDetails>,
     pub users: Vec<UserPublicDetails>,
+    pub maps: Vec<MapDetails>,
+    pub streets: Vec<StreetDetails>,
+    pub addresses: Vec<AddressDetails>,
 }
 
 /// All errors relating to MyDatabase
