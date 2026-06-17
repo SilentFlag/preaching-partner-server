@@ -8,6 +8,8 @@ use std::fmt;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ClientMessage {
     pub id: u32,
+    pub user_id: u32,
+    // pub user_token: [u8; 32],
     pub payload: ClientPayload,
 }
 

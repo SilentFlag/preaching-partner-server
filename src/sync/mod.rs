@@ -3,16 +3,17 @@ use crate::datatypes::{
     AddressDetails, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails, ServerMessage,
     ServerPayload, StreetDetails, SyncInformation, UserPublicDetails,
 };
+use axum::extract::ws::{Message, WebSocket};
 // use core::sync;
-use futures_util::{SinkExt, stream::SplitSink};
+// use futures_util::{SinkExt, stream::SplitSink};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, vec};
-use tokio::net::TcpStream;
-use tokio_tungstenite::WebSocketStream;
-use tokio_tungstenite::tungstenite::Message;
+// use tokio::net::TcpStream;
+// use tokio_tungstenite::WebSocketStream;
+// use tokio_tungstenite::tungstenite::Message;
 
-type WsStream = WebSocketStream<TcpStream>;
-type WsSink = SplitSink<WsStream, Message>;
+// type WsStream = WebSocketStream<TcpStream>;
+// type WsSink = SplitSink<WsStream, Message>;
 
 /// Send the user updated data for all changes since the user last opened the app
 ///
@@ -20,7 +21,7 @@ type WsSink = SplitSink<WsStream, Message>;
 /// TODO: Authorise updates
 pub async fn sync_user(
     db: MyDatabase,
-    write: &mut WsSink,
+    socket: &mut WebSocket,
     last_sync: u32,
     id: u32,
 ) -> Result<(), DbError> {
@@ -64,11 +65,8 @@ pub async fn sync_user(
         payload: ServerPayload::SyncInformation(sync_details),
     };
     let message_bytes = rmp_serde::to_vec(&message).expect("failed to encode sync message");
-    let _ = write
-        .send(tokio_tungstenite::tungstenite::Message::binary(
-            message_bytes,
-        ))
-        .await;
+    let message_to_send = Message::binary(message_bytes);
+    let _send_result = socket.send(message_to_send).await; // TODO: handle error
     println!("sent message");
     Ok(())
 }

@@ -1,5 +1,6 @@
-use futures_util::{SinkExt, StreamExt};
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use axum::extract::ws::{Message, WebSocket};
+// use futures_util::{SinkExt, StreamExt};
+// use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 pub mod datatypes;
 use crate::datatypes::{ClientMessage, ClientPayload, DbError, ServerMessage, ServerPayload};
@@ -13,23 +14,12 @@ mod sync;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Core function accepting a user attempting to connect to the server
-pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDatabase) {
-    let ws_stream = accept_async(stream)
-        .await
-        .expect("Failed to accept WebSocket");
-
+pub async fn handle_connection(mut socket: WebSocket, db: database::MyDatabase) {
     println!("New WebSocket connection");
-
-    let (mut write, mut read) = ws_stream.split();
 
     // TODO: RUSTLS ENCRYPTION
 
-    // Example Query
-    // let rows = sqlx::query("INSERT INTO users(firstname, lastname) VALUES ('my', 'name')").execute(&db).await;
-
-    // Handle incoming requests
-
-    while let Some(msg) = read.next().await {
+    while let Some(msg) = socket.recv().await {
         // TODO: handle corrupt messages
         let msg = match msg {
             Ok(msg) => msg,
@@ -45,6 +35,7 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
             Message::Binary(bin) => {
                 let decoded: ClientMessage = rmp_serde::from_slice(&bin).unwrap();
                 let id: u32 = decoded.id;
+                let user_id: u32 = decoded.user_id;
 
                 match decoded.payload {
                     ClientPayload::Login { name, password } => {
@@ -108,18 +99,17 @@ pub async fn handle_connection(stream: tokio::net::TcpStream, db: database::MyDa
                             },
                         };
                         let message_bytes = rmp_serde::to_vec(&message).unwrap();
-                        let _ = write
-                            .send(tokio_tungstenite::tungstenite::Message::binary(
-                                message_bytes,
-                            ))
-                            .await;
+                        let message_to_send = Message::binary(message_bytes);
+                        // TODO: Error handling
+                        let _send_result = socket.send(message_to_send).await;
                     }
                     ClientPayload::UpdateCheckbox { .. } => {}
                     ClientPayload::UpdateCheckboxDetails { .. } => {}
-                    ClientPayload::RequestSync(time) => {
-                        let sync_result = sync::sync_user(db.clone(), &mut write, time, id).await;
+                    ClientPayload::RequestSync(timestamp) => {
+                        let sync_result =
+                            sync::sync_user(db.clone(), &mut socket, timestamp, user_id).await;
                         if let Err(error) = sync_result {
-                            println!("an error occured while syncing: {}", error);
+                            println!("an error occured while syncing: {}", error); // TODO: Handle error
                         }
                     }
                     ClientPayload::SetLowDataMode(..) => {}
