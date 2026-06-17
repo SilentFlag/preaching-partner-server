@@ -13,6 +13,8 @@ mod sync;
 /// Core function accepting a user attempting to connect to the server
 pub async fn handle_connection(mut socket: WebSocket, db: database::MyDatabase) {
     println!("New WebSocket connection");
+    // TODO: use this to confirm session
+    let _user_id: Option<u32> = None;
 
     // TODO: RUSTLS ENCRYPTION
 
