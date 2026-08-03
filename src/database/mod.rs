@@ -615,6 +615,7 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
 /// TODO: Put in the column names
 fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
     let id = row.try_get("id")?;
+    let name = row.try_get("name")?;
     let image_name: String = row.try_get("file_name")?;
     let assignee: u32 = row.try_get("assignee")?;
     let assigner: u32 = row.try_get("assigner")?;
@@ -622,6 +623,7 @@ fn get_map_details(row: SqliteRow) -> Result<MapDetails, sqlx::Error> {
     let deleted = row.try_get("deleted")?;
     Ok(MapDetails {
         id,
+        name,
         image_name,
         assignee,
         assigner,

@@ -200,6 +200,7 @@ async fn sync_maps(last_sync: u32, id: u32, db: MyDatabase) -> Result<Vec<MapDet
         // TODO: handle Err Result
         complete_maps.push(MapDetails {
             id: map_details.id,
+            name: map_details.name,
             image_name: map_details.image_name,
             assignee: map_details.assignee,
             assigner: map_details.assigner,
