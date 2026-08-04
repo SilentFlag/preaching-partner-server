@@ -513,6 +513,23 @@ impl MyDatabase {
 
         Ok(users)
     }
+
+    pub async fn complete_address(
+        &self,
+        address_id: u32,
+        checked: bool,
+    ) -> Result<(), DbError> {
+        let update_query = sqlx::query("UPDATE addresses SET visited = ? WHERE id = ?")
+            .bind(checked)
+            .bind(address_id);
+
+        let rows_result = update_query.execute(&self.data).await;
+        if let Err(error) = rows_result {
+            return Err(DbError::QueryFailure(error));
+        }
+        Ok(())
+    }
+
 }
 
 // ---------------- Helper functions --------------

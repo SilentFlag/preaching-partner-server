@@ -15,10 +15,9 @@ pub struct ClientMessage {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientPayload {
     Login { name: String, password: String },
-    UpdateCheckbox { map: i32, id: i32, checked: bool },
-    UpdateCheckboxDetails { map: i32, id: i32, name: String },
     RequestAccessToken([u8; 32]),
     RequestSync(u32),
+    CompleteAddress { id: u32, checked: bool },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,6 +36,7 @@ pub enum ServerPayload {
     },
     SyncInformation(SyncInformation),
     NewAccessToken([u8; 32]),
+    AddressCompleted { id: u32, checked: bool },
     UnknownError,
 }
 
