@@ -47,7 +47,7 @@ impl MyDatabase {
     /// TODO: Handle event where user cong pair not updated but cong is. Set updated timestamps on pairs when updating cong?
     pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
         let query = sqlx::query(
-        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id WHERE user_id = ? ").bind(&user_id);
+        "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id WHERE user_id = ? ").bind(user_id);
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -81,7 +81,7 @@ impl MyDatabase {
     pub async fn delete_user_cong_record(&self, user_id: u32, cong_id: u32) -> Result<(), DbError> {
         let update_query =
             sqlx::query("DELETE FROM user_cong_pair WHERE user_id = ? AND congregation_id = ?")
-                .bind(&user_id)
+                .bind(user_id)
                 .bind(cong_id);
 
         let rows_result = update_query.execute(&self.data).await;
@@ -96,7 +96,7 @@ impl MyDatabase {
     pub async fn delete_congregation(&self, cong_id: u32) -> Result<(), DbError> {
         let update_query =
             sqlx::query("UPDATE user_group_pair SET deleted = TRUE WHERE congregation_id = ?")
-                .bind(&cong_id);
+                .bind(cong_id);
 
         let rows_result = update_query.execute(&self.data).await;
         if let Err(error) = rows_result {
@@ -104,7 +104,7 @@ impl MyDatabase {
         }
 
         let update_query =
-            sqlx::query("UPDATE congregation SET deleted = TRUE WHERE id = ?").bind(&cong_id);
+            sqlx::query("UPDATE congregation SET deleted = TRUE WHERE id = ?").bind(cong_id);
 
         let rows_result = update_query.execute(&self.data).await;
         if let Err(error) = rows_result {
@@ -164,7 +164,7 @@ impl MyDatabase {
 
         let get_user_id_query =
             sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = true")
-                .bind(hex::encode(&token_hash));
+                .bind(hex::encode(token_hash));
 
         let rows_result = get_user_id_query.fetch_all(&self.data).await;
         match rows_result {
@@ -189,7 +189,7 @@ impl MyDatabase {
         let user_id: u32;
         let get_user_id_query =
             sqlx::query("SELECT user FROM tokens WHERE token = ? AND refresh = false)")
-                .bind(hex::encode(&user_token));
+                .bind(hex::encode(user_token));
 
         let rows_result = get_user_id_query.fetch_all(&self.data).await;
         match rows_result {
@@ -219,12 +219,12 @@ impl MyDatabase {
             Ok(rows) => {
                 if rows.len() == 1 {
                     let user_id = rows[0].get("id");
-                    return Ok(user_id);
+                    Ok(user_id)
                 } else {
-                    return Err(DbError::InvalidToken(rows.len() as u32));
+                    Err(DbError::InvalidToken(rows.len() as u32))
                 }
             }
-            Err(error) => return Err(DbError::QueryFailure(error)),
+            Err(error) => Err(DbError::QueryFailure(error)),
         }
     }
 
@@ -236,7 +236,7 @@ impl MyDatabase {
     ) -> Result<bool, DbError> {
         // remove refresh token
         let remove_token_query =
-            sqlx::query("DELETE FROM tokens WHERE token = ?").bind(hex::encode(&refresh_token));
+            sqlx::query("DELETE FROM tokens WHERE token = ?").bind(hex::encode(refresh_token));
         let query_result = remove_token_query.execute(&self.data).await;
 
         if let Err(result) = query_result {
@@ -245,7 +245,7 @@ impl MyDatabase {
 
         // remove access tokens
         let insert_token_query =
-            sqlx::query("DELETE FROM tokens WHERE token = ?").bind(hex::encode(&access_token));
+            sqlx::query("DELETE FROM tokens WHERE token = ?").bind(hex::encode(access_token));
         let query_result = insert_token_query.execute(&self.data).await;
 
         if let Err(result) = query_result {
@@ -269,7 +269,7 @@ impl MyDatabase {
 
         let insert_token_query =
             sqlx::query("INSERT INTO tokens(user, refresh, token) VALUES (?, ?, ?)")
-                .bind(&user)
+                .bind(user)
                 .bind(true)
                 .bind(hex::encode(token_hash));
 
@@ -298,7 +298,7 @@ impl MyDatabase {
         let insert_token_query =
             sqlx::query("INSERT INTO tokens(user, refresh, token) VALUES (?, ?, ?)")
                 // TODO: Something wrong with user id so foreign key constraint fails?
-                .bind(&user)
+                .bind(user)
                 .bind(false)
                 .bind(hex::encode(token_hash));
 
@@ -313,7 +313,7 @@ impl MyDatabase {
 
     /// revoke all tokens from a given user in the database
     pub async fn revoke_tokens(&self, user: u32) -> Result<(), DbError> {
-        let insert_token_query = sqlx::query("DELETE FROM tokens WHERE user = ?").bind(&user);
+        let insert_token_query = sqlx::query("DELETE FROM tokens WHERE user = ?").bind(user);
 
         let query_result = insert_token_query.execute(&self.data).await;
 
@@ -345,9 +345,9 @@ impl MyDatabase {
                         }
                     }
                 }
-                return Ok(categories);
+                Ok(categories)
             }
-            Err(error) => return Err(DbError::QueryFailure(error)),
+            Err(error) => Err(DbError::QueryFailure(error)),
         }
     }
 
@@ -356,7 +356,7 @@ impl MyDatabase {
     // Get all groups for a user
     pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
         let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
-        .bind(&user_id);
+        .bind(user_id);
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -410,7 +410,7 @@ impl MyDatabase {
 
         match rows_result {
             Ok(rows) => {
-                if rows.len() == 0 {
+                if rows.is_empty() {
                     let update_query =
                         sqlx::query("DELETE FROM service_group WHERE id = ?").bind(group_id);
 
@@ -663,7 +663,7 @@ fn get_address_details(row: SqliteRow) -> Result<AddressDetails, AddressError> {
     let street_id = row.try_get("street_id")?;
     let number = row.try_get("number")?;
     let tags_serialised: Vec<u8> = row.try_get("tags")?;
-    let tags = if tags_serialised.len() != 0 {
+    let tags = if !tags_serialised.is_empty() {
         rmp_serde::from_slice(&tags_serialised)?
     } else {
         vec![]

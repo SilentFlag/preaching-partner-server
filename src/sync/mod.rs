@@ -97,9 +97,7 @@ async fn sync_congregations(
 
     match congregations_result {
         Ok(congregations) => Ok(congregations),
-        Err(error) => {
-            return Err(error);
-        }
+        Err(error) => Err(error),
     }
 }
 
@@ -148,16 +146,17 @@ async fn sync_service_groups(
     let groups = db.get_groups(user_id).await?;
 
     for group in &groups {
-        if group.updated > last_sync {
-            if group.pair_deleted {
-                // Delete record of user_group_pair
-                let _ = db.delete_user_group_record(user_id, group.id).await?;
+        if group.updated > last_sync && !group.pair_deleted {
+            // Delete record of user_group_pair
 
-                // Check if record of group needs to be deleted
-                // TODO: Check if this needs to check the existance of other group pairs
-                if group.group_deleted {
-                    let _ = db.delete_group_record(group.id).await?;
-                }
+            // TODO: Handle error
+            db.delete_user_group_record(user_id, group.id).await?;
+
+            // Check if record of group needs to be deleted
+            // TODO: Check if this needs to check the existance of other group pairs
+            if group.group_deleted {
+                // TODO: Handle error
+                db.delete_group_record(group.id).await?;
             }
         }
     }
@@ -204,16 +203,12 @@ async fn sync_maps(last_sync: u32, id: u32, db: MyDatabase) -> Result<Vec<MapDet
             image_name: map_details.image_name,
             assignee: map_details.assignee,
             assigner: map_details.assigner,
-            image: if let Ok(image) = image_file {
-                Some(image)
-            } else {
-                None
-            },
+            image: image_file.ok(),
             category: map_details.category,
             deleted: map_details.deleted,
         });
     }
-    return Ok(complete_maps);
+    Ok(complete_maps)
 }
 
 // TODO: Be more selective in streets, give map id?
