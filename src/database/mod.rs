@@ -212,8 +212,8 @@ impl MyDatabase {
     /// TODO: Better error return value
     pub async fn check_user_password(&self, name: &str, pass_hash: &str) -> Result<u32, DbError> {
         let query = sqlx::query("SELECT * FROM users WHERE firstname = ? AND password = ?")
-            .bind(&name)
-            .bind(&pass_hash);
+            .bind(name)
+            .bind(pass_hash);
         let rows_result = query.fetch_all(&self.data).await;
         match rows_result {
             Ok(rows) => {
@@ -514,11 +514,7 @@ impl MyDatabase {
         Ok(users)
     }
 
-    pub async fn complete_address(
-        &self,
-        address_id: u32,
-        checked: bool,
-    ) -> Result<(), DbError> {
+    pub async fn complete_address(&self, address_id: u32, checked: bool) -> Result<(), DbError> {
         let update_query = sqlx::query("UPDATE addresses SET visited = ? WHERE id = ?")
             .bind(checked)
             .bind(address_id);
@@ -529,7 +525,6 @@ impl MyDatabase {
         }
         Ok(())
     }
-
 }
 
 // ---------------- Helper functions --------------

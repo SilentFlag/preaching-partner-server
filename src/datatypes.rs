@@ -40,6 +40,11 @@ pub enum ServerPayload {
     UnknownError,
 }
 
+#[derive(Clone, Debug)]
+pub enum ServerEvent {
+    AddressCompleted { id: u32, checked: bool },
+}
+
 // Sync info
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MapDetails {

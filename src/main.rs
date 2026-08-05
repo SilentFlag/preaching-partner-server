@@ -10,15 +10,22 @@ use preaching_partner_server::auth;
 use preaching_partner_server::database::MyDatabase;
 use preaching_partner_server::datatypes;
 use preaching_partner_server::handle_connection;
+use tokio::sync::broadcast;
 mod services;
 
 // Here I have a code snippit which needs to call the function handle_connection and pass the WebSocket and db to it. How should it be written
 
-async fn ws_handler(ws: WebSocketUpgrade, State(db): State<MyDatabase>) -> Response {
-    ws.on_upgrade(move |socket| handle_connection(socket, db))
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State((db, tx)): State<(MyDatabase, broadcast::Sender<datatypes::ServerEvent>)>,
+) -> Response {
+    ws.on_upgrade(move |socket| handle_connection(socket, db, tx))
 }
 
-async fn login_handler(State(db): State<MyDatabase>, body: Bytes) -> impl IntoResponse {
+async fn login_handler(
+    State((db, _tx)): State<(MyDatabase, broadcast::Sender<datatypes::ServerEvent>)>,
+    body: Bytes,
+) -> impl IntoResponse {
     let body = body.to_vec();
     let decoded: datatypes::ClientMessage = match rmp_serde::from_slice(&body) {
         Ok(v) => v,
@@ -47,11 +54,13 @@ async fn main() {
         Err(error) => panic!("{}", error),
     };
 
+    let (tx, _rx) = broadcast::channel(100);
+
     let app = Router::new()
         .route("/", get(|| async { "Hello" }))
         .route("/login", post(login_handler))
         .route("/ws", get(ws_handler))
-        .with_state(data_storage);
+        .with_state((data_storage, tx));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:9001")
         .await
