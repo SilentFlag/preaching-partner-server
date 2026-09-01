@@ -3,6 +3,9 @@
 use rand::rngs::SysError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use tokio::sync::broadcast;
+
+use crate::{database::MyDatabase, datatypes};
 // use tokio::sync::{mpsc, oneshot, broadcast};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,7 +39,10 @@ pub enum ServerPayload {
     },
     SyncInformation(SyncInformation),
     NewAccessToken([u8; 32]),
-    AddressCompleted { id: u32, checked: bool },
+    AddressCompleted {
+        id: u32,
+        checked: bool,
+    },
     UnknownError,
 }
 
@@ -120,6 +126,18 @@ pub struct UserPublicDetails {
     pub deleted: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserDetails {
+    pub id: u32,
+    pub first_name: String,
+    pub last_name: String,
+    pub enabled: bool,
+    pub primary_cong: u32,
+    pub deleted: bool,
+    pub groups: Vec<GroupDetails>,
+    pub congregations: Vec<CongDetails>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncInformation {
     pub congregations: Vec<CongDetails>,
@@ -200,4 +218,11 @@ impl fmt::Display for AddressError {
             }
         }
     }
+}
+
+/// TODO: Find where this should go
+#[derive(Clone)]
+pub struct AppState {
+    pub db: MyDatabase,
+    pub tx: broadcast::Sender<datatypes::ServerEvent>,
 }

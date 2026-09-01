@@ -9,7 +9,7 @@ edition = "2024"
 tokio = { version = "1", features = ["full", "sync"] }
 tokio-tungstenite = "0.20"
 futures-util = "0.3"
-axum = {version = "0.8.9", features = ['ws']}
+axum = {version = "0.8.9", features = ['ws', 'multipart', 'macros']}
 
 # Encryption
 tokio-rustls = "0.26.4"
@@ -30,3 +30,7 @@ rand = {version = "0.10.1", features = ["sys_rng"]}
 argon2 = "0.5.3" 
 blake2 = "0.10.6"
 hex = "0.4"
+
+csv = "1.4.0"
+
+tinytemplate = "1.2.1"

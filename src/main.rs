@@ -6,26 +6,22 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use preaching_partner_server::auth;
 use preaching_partner_server::database::MyDatabase;
 use preaching_partner_server::datatypes;
 use preaching_partner_server::handle_connection;
+use preaching_partner_server::{auth, datatypes::AppState};
 use tokio::sync::broadcast;
 mod services;
+mod webpage;
 
-// Here I have a code snippit which needs to call the function handle_connection and pass the WebSocket and db to it. How should it be written
-
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State((db, tx)): State<(MyDatabase, broadcast::Sender<datatypes::ServerEvent>)>,
-) -> Response {
+async fn ws_handler(ws: WebSocketUpgrade, State(app_state): State<AppState>) -> Response {
+    let db = app_state.db;
+    let tx = app_state.tx;
     ws.on_upgrade(move |socket| handle_connection(socket, db, tx))
 }
 
-async fn login_handler(
-    State((db, _tx)): State<(MyDatabase, broadcast::Sender<datatypes::ServerEvent>)>,
-    body: Bytes,
-) -> impl IntoResponse {
+async fn login_handler(State(app_state): State<AppState>, body: Bytes) -> impl IntoResponse {
+    let db = app_state.db;
     let body = body.to_vec();
     let decoded: datatypes::ClientMessage = match rmp_serde::from_slice(&body) {
         Ok(v) => v,
@@ -56,11 +52,22 @@ async fn main() {
 
     let (tx, _rx) = broadcast::channel(100);
 
+    let app_state = datatypes::AppState {
+        db: data_storage,
+        tx,
+    };
+
     let app = Router::new()
-        .route("/", get(|| async { "Hello" }))
+        .route("/", get(webpage::root))
+        .route("/users", get(webpage::users))
+        .route("/users/import", get(webpage::import_users))
+        .route("/users/import", post(services::import_users))
+        .route("/congregation/new", get(webpage::add_congregation))
+        .route("/congregation/new", post(services::add_congregation))
+        .route("/congregations", get(webpage::congregations))
         .route("/login", post(login_handler))
         .route("/ws", get(ws_handler))
-        .with_state((data_storage, tx));
+        .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:9001")
         .await

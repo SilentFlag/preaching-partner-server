@@ -1,7 +1,7 @@
 // use argon2::password_hash;
 use crate::datatypes::{
     AddressDetails, AddressError, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails,
-    StreetDetails, UserPublicDetails,
+    StreetDetails, UserDetails, UserPublicDetails,
 };
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
@@ -34,6 +34,23 @@ impl MyDatabase {
 
     // ------------------- CONGREGATION FUNCTIONS ----------
 
+    // TODO: Write docs
+    pub async fn create_congregation(&self, name: &str) -> Result<u32, DbError> {
+        let insert_cong_query =
+            sqlx::query("INSERT INTO congregation(name, deleted, updated) VALUES (?, false, 0)")
+                .bind(name);
+
+        let query_result = insert_cong_query.execute(&self.data).await;
+
+        match query_result {
+            Ok(result) => {
+                let cong_id = result.last_insert_rowid() as u32;
+                Ok(cong_id)
+            }
+            Err(error) => Err(DbError::QueryFailure(error)),
+        }
+    }
+
     /// Get all congregations relevent to a particular user
     ///
     /// Parameters:
@@ -48,6 +65,36 @@ impl MyDatabase {
     pub async fn get_congregations(&self, user_id: u32) -> Result<Vec<CongDetails>, DbError> {
         let query = sqlx::query(
         "SELECT user_cong_pair.congregation_id, congregation.name, user_cong_pair.deleted, user_cong_pair.updated FROM user_cong_pair INNER JOIN congregation ON user_cong_pair.congregation_id=congregation.id WHERE user_id = ? ").bind(user_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut congregations: Vec<CongDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let cong_details = cong_row_to_details(row);
+                    match cong_details {
+                        Ok(details) => {
+                            congregations.push(details);
+                        }
+                        Err(error) => {
+                            return Err(DbError::QueryFailure(error));
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(congregations)
+    }
+
+    /// TODO: Write docs
+    pub async fn get_all_congregations(&self) -> Result<Vec<CongDetails>, DbError> {
+        let query = sqlx::query("SELECT *, id AS congregation_id FROM congregation");
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -114,6 +161,62 @@ impl MyDatabase {
     }
 
     // ------------------- USER FUNCTIONS ------------------
+
+    /// Create user
+    /// TODO: Write docs
+    /// TODO: check if user already exists
+    /// TODO: set updated to current time
+    pub async fn create_user(
+        &self,
+        firstname: &str,
+        lastname: &str,
+        primary_cong: u32,
+    ) -> Result<u32, DbError> {
+        let insert_user_query = sqlx::query(
+            "INSERT INTO users(firstname, lastname, primary_congregation, enabled, updated) VALUES (?, ?, ?, false, 0)",
+        )
+        .bind(firstname)
+        .bind(lastname)
+        .bind(primary_cong);
+
+        let query_result = insert_user_query.execute(&self.data).await;
+
+        match query_result {
+            Ok(result) => {
+                let user_id = result.last_insert_rowid() as u32;
+                Ok(user_id)
+            }
+            Err(error) => Err(DbError::QueryFailure(error)),
+        }
+    }
+
+    /// Get all users
+    pub async fn get_all_users(&self) -> Result<Vec<UserDetails>, DbError> {
+        let query = sqlx::query("SELECT * FROM users");
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut users: Vec<UserDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let user_details = get_all_user_details(row);
+                    match user_details {
+                        Ok(user_details) => {
+                            users.push(user_details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(users)
+    }
 
     /// Get users updated since a time that are in the clients congs
     /// TODO: Update? I don't think it is nessacary to send all users to the client
@@ -613,6 +716,29 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
     let deleted: bool = row.try_get("deleted")?;
     let name = format!("{} {}", firstname, lastname);
     Ok(UserPublicDetails { id, name, deleted })
+}
+
+/// TODO: Write docs
+fn get_all_user_details(row: SqliteRow) -> Result<UserDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let firstname: String = row.try_get("firstname")?;
+    let lastname: String = row.try_get("lastname")?;
+    let deleted: bool = row.try_get("deleted")?;
+    let enabled: bool = row.try_get("enabled")?;
+    let primary_cong: u32 = row.try_get("primary_congregation")?;
+
+    // TODO: Get groups and congregations for user
+
+    Ok(UserDetails {
+        id,
+        first_name: firstname,
+        last_name: lastname,
+        enabled,
+        primary_cong,
+        deleted,
+        groups: vec![],
+        congregations: vec![],
+    })
 }
 
 /// Given a SqliteRow, return the details of the map

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Congregations | Preaching Partner Server</title>
+</head>
+<body>
+    <h1>Congregations</h1>
+    <a href="/congregation/new">create congregation</a>
+
+    <table>
+        <tbody>
+        <tr>
+            <th>Name</th>
+        </tr>
+        {{for row in table_data}}
+        <tr>
+            <td>
+                {row.cong_name}
+            </td>
+        </tr>
+        {{ endfor }}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Create Congregation | Preaching Partner Server</title>
+    </head>
+    <body>
+        <h1>Create Congregation</h1>
+        <a href="/">Home</a>
+        <p>Use this page to create a new congregation in the Preaching Partner Server.</p>
+        <form action="/congregation/new" method="post" enctype="multipart/form-data">
+            <label for="name">Congregation Name:</label>
+            <input type="text" id="name" name="name" required>
+            <button type="submit">Create</button>
+        </form>
+    </body>
+</html>

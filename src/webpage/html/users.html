@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Users | Preaching Partner Server</title>
+</head>
+<body>
+    <h1>Users</h1>
+    <a href="/user/new">create user</a>
+
+    <table>
+        <tbody>
+        <tr>
+            <th>Name</th>
+        </tr>
+        {{for row in table_data}}
+        <tr>
+            <td>
+                {row.first_name}
+            </td>
+        </tr>
+        {{ endfor }}
+        </tbody>
+    </table>
+</body>
+</html>
