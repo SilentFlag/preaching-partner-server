@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Create Group | Preaching Partner Server</title>
+    </head>
+    <body>
+        <h1>Create Group</h1>
+        <a href="/">Home</a>
+        <p>Use this page to create a new group in the Preaching Partner Server.</p>
+        <form action="/groups/{id}/new" method="post" enctype="multipart/form-data">
+            <label for="name">Group Name:</label>
+            <!-- TODO: add elder selection -->
+            <input type="text" id="name" name="name" required>
+            <button type="submit">Create</button>
+        </form>
+    </body>
+</html>

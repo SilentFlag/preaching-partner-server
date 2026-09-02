@@ -1,16 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Preaching Partner Server</title>
+    <title>Preaching Partner Admin Dashboard</title>
 </head>
 <body>
-    <h1>Preaching Partner Server</h1>
-    <p>Welcome to the Preaching Partner Server!</p>
-    <a href="/users/import">import users</a><br>
-    <a href="/congregation/new">create congregation</a><br>
+    <h1>Preaching Partner Admin Dashboard</h1>
+    <p>Welcome to your Preaching Partner admin dashboard!</p>
     <hr>
 
+    <section>
+        <h2>Congregations</h2>
+        <a href="/congregation/new">Create Congregation</a>
+        <div class="cong-box">
+            {{for row in table_data}}
+                <a class="cong" href="/congregation/details/{row.cong_id}">
+                    <p class="cong-name">{row.cong_name}</p>
+                </a>
+            {{ endfor }}
+        </div>
+    </section>
+
     <a href="/congregations">Congregations</a><br>
+    <a href="/groups">Groups</a><br>
     <a href="/users">Users</a>
 </body>
 </html>

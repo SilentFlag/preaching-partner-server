@@ -7,7 +7,7 @@
         <h1>Import Users</h1>
         <a href="/">Home</a>
         <p>Use this page to import users into the Preaching Partner Server.</p>
-        <form action="/users/import" method="post" enctype="multipart/form-data">
+        <form action="/users/import/{id}" method="post" enctype="multipart/form-data">
             <label for="file">Select a CSV file to import:</label>
             <input type="file" id="file" name="file" accept=".csv" required>
             <button type="submit">Import</button>

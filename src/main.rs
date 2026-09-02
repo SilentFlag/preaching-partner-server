@@ -59,12 +59,20 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(webpage::root))
-        .route("/users", get(webpage::users))
-        .route("/users/import", get(webpage::import_users))
-        .route("/users/import", post(services::import_users))
+        // Congregations
         .route("/congregation/new", get(webpage::add_congregation))
         .route("/congregation/new", post(services::add_congregation))
-        .route("/congregations", get(webpage::congregations))
+        .route(
+            "/congregation/details/{id}",
+            get(webpage::congregation_details),
+        )
+        // Groups
+        .route("/groups/{id}/new", get(webpage::add_group))
+        .route("/groups/{id}/new", post(services::add_group))
+        // Users
+        .route("/users/import/{id}", get(webpage::import_users))
+        .route("/users/import/{id}", post(services::import_users))
+        // App Connection
         .route("/login", post(login_handler))
         .route("/ws", get(ws_handler))
         .with_state(app_state);

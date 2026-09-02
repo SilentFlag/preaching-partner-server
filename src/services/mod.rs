@@ -1,5 +1,6 @@
 use crate::auth::account;
 use crate::datatypes::{AppState, DbError, ServerMessage, ServerPayload};
+use axum::extract::Path;
 use axum::{
     extract::{Multipart, State},
     response::Html,
@@ -11,7 +12,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tinytemplate::TinyTemplate;
 
 static CREATED_CONG_TEMPLATE: &str = include_str!("html/add_congregation_success.html");
+static CREATED_GROUP_TEMPLATE: &str = include_str!("html/add_group_success.html");
 static CREATED_USER_TEMPLATE: &str = include_str!("html/import_users_success.html");
+
+// TODO: Don't return success page if something failed
 
 pub async fn login_attempt(name: String, password: String, db: MyDatabase) -> Result<Vec<u8>, ()> {
     println!("Attempting login");
@@ -66,8 +70,10 @@ pub async fn login_attempt(name: String, password: String, db: MyDatabase) -> Re
     Ok(message_bytes)
 }
 
+// TODO: check for duplicates
 pub async fn import_users(
     State(app_state): State<AppState>,
+    Path(id): Path<u32>,
     mut payload: Multipart,
 ) -> Html<String> {
     let db = app_state.db;
@@ -86,7 +92,7 @@ pub async fn import_users(
                     Ok(record) => {
                         let firstname = record.get(0).unwrap_or("unknown");
                         let lastname = record.get(1).unwrap_or("unknown");
-                        let congregation = record.get(2).unwrap_or("0").parse::<u32>().unwrap_or(0);
+                        let congregation = id;
                         let name = format!("{} {}", firstname, lastname);
                         println!("Importing user: {}", name);
                         match db.create_user(firstname, lastname, congregation).await {
@@ -127,6 +133,33 @@ pub async fn add_congregation(
     }
     let mut tt = TinyTemplate::new();
     tt.add_template("root", CREATED_CONG_TEMPLATE).unwrap();
+    let html_response = tt.render("root", &()).unwrap_or_else(|_| {
+        "An unknown error occured, please refresh the page or try again in a few minutes"
+            .to_string()
+    });
+    Html::from(html_response)
+}
+
+pub async fn add_group(
+    State(app_state): State<AppState>,
+    Path(id): Path<u32>,
+    mut payload: Multipart,
+) -> Html<String> {
+    let db = app_state.db;
+    while let Ok(Some(field)) = payload.next_field().await {
+        let field_name = field.name().unwrap_or("unknown");
+        if field_name == "name" {
+            let data = field.bytes().await.unwrap();
+            let name = String::from_utf8(data.to_vec()).unwrap();
+            println!("Creating group: {}", name);
+            match db.create_group(name.as_str(), id, 0).await {
+                Ok(_) => println!("Successfully created group"),
+                Err(error) => println!("Error creating group: {}", error),
+            }
+        }
+    }
+    let mut tt = TinyTemplate::new();
+    tt.add_template("root", CREATED_GROUP_TEMPLATE).unwrap();
     let html_response = tt.render("root", &()).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()

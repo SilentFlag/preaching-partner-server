@@ -132,6 +132,7 @@ pub struct UserDetails {
     pub first_name: String,
     pub last_name: String,
     pub enabled: bool,
+    // TODO: Change to string of congregation names instead of ids
     pub primary_cong: u32,
     pub deleted: bool,
     pub groups: Vec<GroupDetails>,

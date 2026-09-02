@@ -122,6 +122,25 @@ impl MyDatabase {
         Ok(congregations)
     }
 
+    /// TODO: Write docs
+    pub async fn get_congregation_details(&self, cong_id: u32) -> Result<CongDetails, DbError> {
+        let query = sqlx::query("SELECT *, id AS congregation_id FROM congregation WHERE id = ?")
+            .bind(cong_id);
+
+        let row_result = query.fetch_one(&self.data).await;
+
+        match row_result {
+            Ok(row) => {
+                let cong_details = cong_row_to_details(row);
+                match cong_details {
+                    Ok(details) => Ok(details),
+                    Err(error) => Err(DbError::QueryFailure(error)),
+                }
+            }
+            Err(error) => Err(DbError::QueryFailure(error)),
+        }
+    }
+
     /// Remove record of user being part of a congregation
     /// TODO: Refine query to only delete where delete is checked
     /// TODO: Handle case of no rows affected
@@ -456,6 +475,36 @@ impl MyDatabase {
 
     // ------------------ GROUP FUNCTIONS -----------------
 
+    /// TODO: Write docs
+    pub async fn get_all_groups(&self) -> Result<Vec<GroupDetails>, DbError> {
+        let query = sqlx::query("SELECT *, id AS group_id FROM service_group");
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut groups: Vec<GroupDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let group_details = group_row_to_details(row);
+                    match group_details {
+                        Ok(details) => {
+                            groups.push(details);
+                        }
+                        Err(error) => {
+                            return Err(DbError::QueryFailure(error));
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(groups)
+    }
+
     // Get all groups for a user
     pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
         let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
@@ -483,6 +532,34 @@ impl MyDatabase {
         }
 
         Ok(groups)
+    }
+
+    // TODO: Write docs
+    pub async fn create_group(
+        &self,
+        name: &str,
+        congregation_id: u32,
+        elder: u32,
+    ) -> Result<u32, DbError> {
+        let insert_group_query = match elder {
+            0 => sqlx::query("INSERT INTO service_group(name, congregation, deleted, updated) VALUES (?, ?, false, false)")
+                .bind(name)
+                .bind(congregation_id),
+            _ => sqlx::query("INSERT INTO service_group(name, congregation, elder, deleted, updated) VALUES (?, ?, ?, false, 0)")
+                .bind(name)
+                .bind(congregation_id)
+                .bind(elder),
+        };
+
+        let query_result = insert_group_query.execute(&self.data).await;
+
+        match query_result {
+            Ok(result) => {
+                let group_id = result.last_insert_rowid() as u32;
+                Ok(group_id)
+            }
+            Err(error) => Err(DbError::QueryFailure(error)),
+        }
     }
 
     // Remove record of user being part of a group
@@ -643,6 +720,25 @@ fn cong_row_to_details(row: SqliteRow) -> Result<CongDetails, sqlx::Error> {
         cong_name,
         remove,
         updated,
+    })
+}
+
+/// Convert a row of the congregations table to the CongDetails datatype
+/// TODO: Return with strings for cong and elder instead of ids
+fn group_row_to_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
+    let id: u32 = row.try_get("group_id")?;
+    let name: String = row.try_get("name")?;
+    let cong: u32 = row.try_get("congregation")?;
+    let elder: u32 = row.try_get("elder")?;
+    let updated: u32 = row.try_get("updated")?;
+    Ok(GroupDetails {
+        id,
+        name,
+        cong,
+        elder,
+        updated,
+        group_deleted: false,
+        pair_deleted: false,
     })
 }
 
