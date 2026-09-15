@@ -69,6 +69,7 @@ async fn main() {
         // Groups
         .route("/groups/new/{id}", get(webpage::add_group))
         .route("/groups/new/{id}", post(services::add_group))
+        .route("/group/details/{id}", get(webpage::group_details))
         // Users
         .route("/users/import/{id}", get(webpage::import_users))
         .route("/users/import/{id}", post(services::import_users))

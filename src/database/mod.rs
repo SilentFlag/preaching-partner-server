@@ -200,6 +200,20 @@ impl MyDatabase {
 
         let query_result = insert_user_query.execute(&self.data).await;
 
+        let user_id = match query_result {
+            Ok(result) => result.last_insert_rowid() as u32,
+            Err(error) => return Err(DbError::QueryFailure(error)),
+        };
+
+        let insert_user_query = sqlx::query(
+            "INSERT INTO user_cong_pair(user_id, congregation_id, updated) VALUES (?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(primary_cong)
+        .bind(0);
+
+        let query_result = insert_user_query.execute(&self.data).await;
+
         match query_result {
             Ok(result) => {
                 let user_id = result.last_insert_rowid() as u32;
@@ -212,6 +226,39 @@ impl MyDatabase {
     /// Get all users
     pub async fn get_all_users(&self) -> Result<Vec<UserDetails>, DbError> {
         let query = sqlx::query("SELECT * FROM users");
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut users: Vec<UserDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let user_details = get_all_user_details(row);
+                    match user_details {
+                        Ok(user_details) => {
+                            users.push(user_details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(users)
+    }
+
+    /// Get all users
+    pub async fn get_users_by_congregation(
+        &self,
+        cong_id: u32,
+    ) -> Result<Vec<UserDetails>, DbError> {
+        let query: sqlx::query::Query<'_, Sqlite, sqlx::sqlite::SqliteArguments<'_>> =
+            sqlx::query("SELECT * FROM users WHERE id IN (SELECT user_id FROM user_cong_pair WHERE congregation_id = ?)")
+                .bind(cong_id);
 
         let rows_result = query.fetch_all(&self.data).await;
 
@@ -532,6 +579,28 @@ impl MyDatabase {
         }
 
         Ok(groups)
+    }
+
+    // Get all groups for a user
+    pub async fn get_group_details(&self, id: u32) -> Result<GroupDetails, DbError> {
+        let query = sqlx::query("SELECT * FROM service_group WHERE id = ?").bind(id);
+
+        let rows_result = query.fetch_one(&self.data).await;
+
+        let group: GroupDetails = match rows_result {
+            Ok(row) => {
+                let group_details = get_group_details(row);
+                match group_details {
+                    Ok(details) => details,
+                    Err(error) => return Err(DbError::InvalidRow(error)),
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        };
+
+        Ok(group)
     }
 
     // Get all groups for a user
