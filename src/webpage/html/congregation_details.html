@@ -8,11 +8,25 @@
     <a href="/">Back to Home</a>
     <h2>Details</h2>
     <hr>
-    <h2>Groups</h2>
-    <a href="/groups/{data.cong_id}/new">Add Group</a>
+
+    <section>
+        <h2>Groups</h2>
+        <a href="/groups/new/{data.cong_id}">Create Group</a>
+        <div class="group-box">
+            {{for row in groups}}
+                <a class="group" href="/group/details/{row.id}">
+                    <p class="group-name">{row.name}</p>
+                </a>
+            {{ endfor }}
+        </div>
+    </section>
+
     <hr>
+
     <h2>Users</h2>
     <a href="/users/import/{data.cong_id}">Add Users</a>
     <hr>
+
+
 </body>
 </html>

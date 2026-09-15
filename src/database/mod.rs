@@ -534,6 +534,40 @@ impl MyDatabase {
         Ok(groups)
     }
 
+    // Get all groups for a user
+    pub async fn get_groups_by_congregation(
+        &self,
+        congregation: u32,
+    ) -> Result<Vec<GroupDetails>, DbError> {
+        let query = sqlx::query(
+            "SELECT *, id AS group_id FROM service_group WHERE service_group.congregation = ?",
+        )
+        .bind(congregation);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut groups: Vec<GroupDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let group_details = get_group_details(row);
+                    match group_details {
+                        Ok(details) => {
+                            groups.push(details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(groups)
+    }
+
     // TODO: Write docs
     pub async fn create_group(
         &self,
@@ -780,19 +814,12 @@ fn category_row_to_details(row: SqliteRow) -> Result<CategoryDetails, sqlx::Erro
 ///     Ok(GroupDetails): Function successful
 ///     Err(sqlx::Error): Sqlx Error occured
 fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
-    let id = row.try_get("group_id")?;
+    let id = row.try_get("id")?;
     let name: String = row.try_get("name")?;
     let cong: u32 = row.try_get("congregation")?;
     let elder: u32 = row.try_get("elder")?;
-    let group_updated: u32 = row.try_get("group_updated")?;
-    let pair_updated: u32 = row.try_get("pair_updated")?;
-    let updated: u32 = if group_updated > pair_updated {
-        group_updated
-    } else {
-        pair_updated
-    };
-    let group_deleted: bool = row.try_get("group_deleted")?;
-    let pair_deleted: bool = row.try_get("pair_deleted")?;
+    let updated: u32 = row.try_get("updated")?;
+    let group_deleted: bool = row.try_get("deleted")?;
     Ok(GroupDetails {
         id,
         name,
@@ -800,7 +827,7 @@ fn get_group_details(row: SqliteRow) -> Result<GroupDetails, sqlx::Error> {
         elder,
         updated,
         group_deleted,
-        pair_deleted,
+        pair_deleted: false,
     })
 }
 

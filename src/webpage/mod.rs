@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     response::Html,
 };
-use preaching_partner_server::datatypes::{AppState, CongDetails};
+use preaching_partner_server::datatypes::{AppState, CongDetails, GroupDetails};
 use serde::Serialize;
 use tinytemplate::TinyTemplate;
 
@@ -14,6 +14,7 @@ struct CongContext {
 #[derive(Serialize)]
 struct CongregationDetailsContext {
     data: CongDetails,
+    groups: Vec<GroupDetails>,
 }
 
 #[derive(Serialize)]
@@ -62,14 +63,20 @@ pub async fn congregation_details(
     Path(id): Path<u32>,
 ) -> Html<std::string::String> {
     let cong_details = app_state.db.get_congregation_details(id).await.unwrap();
+    let groups = app_state.db.get_groups_by_congregation(id).await.unwrap();
+    println!("Congregation details: {:?}", groups);
     let mut tt = TinyTemplate::new();
     tt.add_template("congregation_details", CONGREGATION_DETAILS_TEMPLATE)
         .unwrap();
 
-    let context = CongregationDetailsContext { data: cong_details };
+    let context = CongregationDetailsContext {
+        data: cong_details,
+        groups,
+    };
     let html_response = tt
         .render("congregation_details", &context)
-        .unwrap_or_else(|_| {
+        .unwrap_or_else(|e| {
+            eprintln!("Error rendering congregation details: {}", e);
             "An unknown error occured, please refresh the page or try again in a few minutes"
                 .to_string()
         });

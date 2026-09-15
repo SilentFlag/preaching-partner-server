@@ -67,11 +67,20 @@ async fn main() {
             get(webpage::congregation_details),
         )
         // Groups
-        .route("/groups/{id}/new", get(webpage::add_group))
-        .route("/groups/{id}/new", post(services::add_group))
+        .route("/groups/new/{id}", get(webpage::add_group))
+        .route("/groups/new/{id}", post(services::add_group))
         // Users
         .route("/users/import/{id}", get(webpage::import_users))
         .route("/users/import/{id}", post(services::import_users))
+        // TODO: Categories
+        // add category
+        // TODO: Maps
+        // Add map
+        // Edit map
+        // add street
+        // edit street
+        // add addresses
+        // edit addresses
         // App Connection
         .route("/login", post(login_handler))
         .route("/ws", get(ws_handler))
