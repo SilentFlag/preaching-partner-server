@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Import Maps | Preaching Partner Server</title>
+    </head>
+    <body>
+        <h1>Import Maps</h1>
+        <a href="/">Home</a>
+        <p>Use this page to import maps into the Preaching Partner Server.</p>
+        <form action="/maps/import/{id}" method="post" enctype="multipart/form-data">
+            <label for="file">Select a CSV file to import:</label>
+            <input type="file" id="file" name="file" accept=".csv" required>
+            <button type="submit">Import</button>
+        </form>
+    </body>
+</html>

@@ -23,20 +23,30 @@
 
     <hr>
 
-    <h2>Users</h2>
-    <a href="/users/import/{data.cong_id}">Add Users</a>
-    <table>
-        <tr>
-            <th>Firstname(s)</th>
-            <th>Lastname</th>
-        </tr>
-        {{for row in users}}
+    <section>
+        <h2>Maps</h2>
+        <a href="/maps/import/{data.cong_id}">Import Maps</a>
+    </section>
+
+    <hr>
+
+    <section>
+        <h2>Users</h2>
+        <a href="/users/import/{data.cong_id}">Add Users</a>
+        <table>
             <tr>
-                <td>{row.first_name}</td>
-                <td>{row.last_name}</td>
+                <th>Firstname(s)</th>
+                <th>Lastname</th>
             </tr>
-        {{ endfor }}
-    </table>
+            {{for row in users}}
+                <tr>
+                    <td>{row.first_name}</td>
+                    <td>{row.last_name}</td>
+                </tr>
+            {{ endfor }}
+        </table>
+    </section>
+
     <hr>
 
 

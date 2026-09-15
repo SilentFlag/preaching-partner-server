@@ -34,6 +34,7 @@ static ADD_CONGREGATION_TEMPLATE: &str = include_str!("html/add_congregation.htm
 static ADD_GROUPS_TEMPLATE: &str = include_str!("html/add_group.html");
 static GROUP_DETAILS_TEMPLATE: &str = include_str!("html/group_details.html");
 static IMPORT_USERS_TEMPLATE: &str = include_str!("html/import_users.html");
+static IMPORT_MAPS_TEMPLATE: &str = include_str!("html/import_maps.html");
 
 /// TODO: handle errors, maybe with error page
 pub async fn root(State(app_state): State<AppState>) -> Html<std::string::String> {
@@ -133,6 +134,20 @@ pub async fn import_users(Path(id): Path<u32>) -> Html<std::string::String> {
         .unwrap();
     let context = IdContext { id };
     let html_response = tt.render("import_users", &context).unwrap_or_else(|_| {
+        "An unknown error occured, please refresh the page or try again in a few minutes"
+            .to_string()
+    });
+    Html::from(html_response)
+}
+
+// MAPS
+
+pub async fn import_maps(Path(id): Path<u32>) -> Html<std::string::String> {
+    let mut tt = TinyTemplate::new();
+    tt.add_template("import_maps", IMPORT_MAPS_TEMPLATE)
+        .unwrap();
+    let context = IdContext { id };
+    let html_response = tt.render("import_maps", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()
     });

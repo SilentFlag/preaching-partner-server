@@ -76,6 +76,7 @@ async fn main() {
         // TODO: Categories
         // add category
         // TODO: Maps
+        .route("/maps/import/{id}", get(webpage::import_maps))
         // Add map
         // Edit map
         // add street
