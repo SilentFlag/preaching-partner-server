@@ -15,6 +15,11 @@ static CREATED_CONG_TEMPLATE: &str = include_str!("html/add_congregation_success
 static CREATED_GROUP_TEMPLATE: &str = include_str!("html/add_group_success.html");
 static CREATED_USER_TEMPLATE: &str = include_str!("html/import_users_success.html");
 
+#[derive(serde::Serialize)]
+struct CreateGroupContext {
+    id: u32,
+}
+
 // TODO: Don't return success page if something failed
 
 pub async fn login_attempt(name: String, password: String, db: MyDatabase) -> Result<Vec<u8>, ()> {
@@ -105,9 +110,10 @@ pub async fn import_users(
             }
         }
     }
+    let context = CreateGroupContext { id };
     let mut tt = TinyTemplate::new();
     tt.add_template("root", CREATED_USER_TEMPLATE).unwrap();
-    let html_response = tt.render("root", &()).unwrap_or_else(|_| {
+    let html_response = tt.render("root", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()
     });
@@ -158,9 +164,10 @@ pub async fn add_group(
             }
         }
     }
+    let context = CreateGroupContext { id };
     let mut tt = TinyTemplate::new();
     tt.add_template("root", CREATED_GROUP_TEMPLATE).unwrap();
-    let html_response = tt.render("root", &()).unwrap_or_else(|_| {
+    let html_response = tt.render("root", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()
     });
