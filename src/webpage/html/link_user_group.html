@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Users | Preaching Partner Server</title>
+    <link rel="stylesheet" type="text/css" href="/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/group/details/{id}">&larr; Back</a>
+        <span>Preaching Partner Admin Dashboard</span>
+    </nav>
+
+    <section class="title-box">
+        <h1>{data.name}</h1>
+    </section>
+    
+    <hr>
+
+    <section class="select form">
+        <!-- TODO: Filters -->
+        <form action="/group/users/add/{id}" method="post" enctype="multipart/form-data" style="width: 100%">
+            <table>
+                <tr>
+                    <th>Add to Group</th>
+                    <th>Firstname(s)</th>
+                    <th>Lastname</th>
+                    <th>Group(s)</th>
+                    <th>Role</th>
+                </tr>
+                {{for row in users}}
+                    <tr>
+                        <td><input type="checkbox" name="" id=""></td>
+                        <td>{row.first_name}</td>
+                        <td>{row.last_name}</td>
+                        <td>
+                            {{if row.groups}}
+                                {{for group in row.groups}}
+                                    {group.name},
+                                {{endfor}}
+                            {{else}}
+                                <span style="color:red;">Unassigned</span>
+                            {{endif}}
+                        </td>
+                        <td>{row.cong_role_title}</td>
+                    </tr>
+                {{ endfor }}
+            </table>
+            <button type="submit">Add Users</button>
+        </form>
+    </section>
+
+    <hr>
+
+
+</body>
+</html>

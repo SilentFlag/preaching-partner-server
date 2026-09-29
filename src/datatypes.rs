@@ -142,6 +142,8 @@ pub struct UserDetails {
     pub enabled: bool,
     // TODO: Change to string of congregation names instead of ids
     pub primary_cong: u32,
+    pub cong_role: u32,
+    pub cong_role_title: String,
     pub deleted: bool,
     pub groups: Vec<GroupDetails>,
     pub congregations: Vec<CongDetails>,

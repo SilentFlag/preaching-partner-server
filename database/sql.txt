@@ -9,7 +9,7 @@ CREATE TABLE service_group(id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, c
 
 CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, lastname VARCHAR(255) NOT NULL, password VARCHAR(255), enabled BOOL NOT NULL, activation_code INT, updated INTEGER, deleted BOOL, primary_congregation INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (primary_congregation) REFERENCES congregation(id));
 
-CREATE TABLE user_cong_pair(user_id INTEGER, congregation_id INTEGER, deleted BOOL, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
+CREATE TABLE user_cong_pair(user_id INTEGER, congregation_id INTEGER, deleted BOOL, updated INTEGER, role INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
 CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL NOT NULL, updated INTEGER, role INTEGER, CONSTRAINT fk_group_id FOREIGN KEY (group_id) REFERENCES service_group(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
@@ -39,12 +39,12 @@ INSERT INTO users(firstname, lastname, password, enabled, activation_code, updat
 INSERT INTO service_group(name, congregation, elder, updated, deleted) VALUES('Default Group', 1, 1, 0, false);
 INSERT INTO service_group(name, congregation, elder, updated, deleted) VALUES('Default Group', 1, 2, 0, false);
 
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(1, 1, false, 0);
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(2, 1, false, 0);
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(3, 1, false, 0);
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(4, 1, false, 0);
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(5, 1, false, 0);
-INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(6, 1, false, 0);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(1, 1, false, 0, 1);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(2, 1, false, 0, 1);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(3, 1, false, 0, 0);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(4, 1, false, 0, 0);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(5, 1, false, 0, 0);
+INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated, role) VALUES(6, 1, false, 0, 0);
 
 INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(1,2,false,0, 1);
 INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(2,1,false,0, 1);

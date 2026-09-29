@@ -224,40 +224,12 @@ impl MyDatabase {
     }
 
     /// Get all users
-    pub async fn get_all_users(&self) -> Result<Vec<UserDetails>, DbError> {
-        let query = sqlx::query("SELECT * FROM users");
-
-        let rows_result = query.fetch_all(&self.data).await;
-
-        let mut users: Vec<UserDetails> = vec![];
-
-        match rows_result {
-            Ok(rows) => {
-                for row in rows {
-                    let user_details = get_all_user_details(row);
-                    match user_details {
-                        Ok(user_details) => {
-                            users.push(user_details);
-                        }
-                        Err(error) => return Err(DbError::InvalidRow(error)),
-                    }
-                }
-            }
-            Err(error) => {
-                return Err(DbError::QueryFailure(error));
-            }
-        }
-
-        Ok(users)
-    }
-
-    /// Get all users
     pub async fn get_users_by_congregation(
         &self,
         cong_id: u32,
     ) -> Result<Vec<UserDetails>, DbError> {
         let query: sqlx::query::Query<'_, Sqlite, sqlx::sqlite::SqliteArguments<'_>> =
-            sqlx::query("SELECT * FROM users WHERE id IN (SELECT user_id FROM user_cong_pair WHERE congregation_id = ?)")
+            sqlx::query("SELECT users.id, users.firstname, users.lastname, users.deleted, users.enabled, users.primary_congregation, user_cong_pair.role FROM users INNER JOIN user_cong_pair ON user_cong_pair.user_id=users.id WHERE id IN (SELECT user_id FROM user_cong_pair WHERE congregation_id = ?)")
                 .bind(cong_id);
 
         let rows_result = query.fetch_all(&self.data).await;
@@ -267,7 +239,7 @@ impl MyDatabase {
         match rows_result {
             Ok(rows) => {
                 for row in rows {
-                    let user_details = get_all_user_details(row);
+                    let user_details = get_all_user_details(row, self).await;
                     match user_details {
                         Ok(user_details) => {
                             users.push(user_details);
@@ -554,7 +526,7 @@ impl MyDatabase {
 
     // Get all groups for a user
     pub async fn get_groups(&self, user_id: u32) -> Result<Vec<GroupDetails>, DbError> {
-        let query = sqlx::query("SELECT user_group_pair.group_id AS group_id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS pair_updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS group_deleted, service_group.updated AS group_updated, service_group.congregation AS congregation FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
+        let query = sqlx::query("SELECT user_group_pair.group_id AS id, user_group_pair.deleted AS pair_deleted, user_group_pair.updated AS updated, service_group.name AS name, service_group.elder AS elder, service_group.deleted AS deleted, service_group.updated AS group_updated, service_group.congregation AS congregation FROM user_group_pair INNER JOIN service_group ON service_group.id=user_group_pair.group_id WHERE user_id = ?")
         .bind(user_id);
 
         let rows_result = query.fetch_all(&self.data).await;
@@ -939,15 +911,33 @@ fn get_user_details(row: SqliteRow) -> Result<UserPublicDetails, sqlx::Error> {
 }
 
 /// TODO: Write docs
-fn get_all_user_details(row: SqliteRow) -> Result<UserDetails, sqlx::Error> {
+async fn get_all_user_details(row: SqliteRow, db: &MyDatabase) -> Result<UserDetails, sqlx::Error> {
     let id = row.try_get("id")?;
     let firstname: String = row.try_get("firstname")?;
     let lastname: String = row.try_get("lastname")?;
     let deleted: bool = row.try_get("deleted")?;
     let enabled: bool = row.try_get("enabled")?;
     let primary_cong: u32 = row.try_get("primary_congregation")?;
+    let cong_role: u32 = row.try_get("role")?;
+    let cong_role_title: String = match cong_role {
+        0 => String::from("Publisher"),
+        1 => String::from("Elder"),
+        _ => {
+            format!("Unknown {}", cong_role)
+        }
+    };
 
-    // TODO: Get groups and congregations for user
+    let groups_tmp = db.get_groups(id).await;
+    // TODO: Better error handling
+    let groups = match groups_tmp {
+        Ok(value) => value,
+        Err(err) => {
+            println!("{err}");
+            return Err(sqlx::error::Error::BeginFailed);
+        }
+    };
+
+    // TODO: Get congregations for user
 
     Ok(UserDetails {
         id,
@@ -955,8 +945,10 @@ fn get_all_user_details(row: SqliteRow) -> Result<UserDetails, sqlx::Error> {
         last_name: lastname,
         enabled,
         primary_cong,
+        cong_role,
+        cong_role_title,
         deleted,
-        groups: vec![],
+        groups,
         congregations: vec![],
     })
 }

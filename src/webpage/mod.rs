@@ -30,6 +30,13 @@ struct GroupDetailsContext {
 }
 
 #[derive(Serialize)]
+struct GroupLinkDetailsContext {
+    id: u32,
+    data: GroupDetails,
+    users: Vec<UserDetails>,
+}
+
+#[derive(Serialize)]
 struct IdContext {
     styles: &'static str,
     id: u32,
@@ -40,6 +47,7 @@ static CONGREGATION_DETAILS_TEMPLATE: &str = include_str!("html/congregation_det
 static ADD_CONGREGATION_TEMPLATE: &str = include_str!("html/add_congregation.html");
 static ADD_GROUPS_TEMPLATE: &str = include_str!("html/add_group.html");
 static GROUP_DETAILS_TEMPLATE: &str = include_str!("html/group_details.html");
+static LINK_USER_GROUP: &str = include_str!("html/link_user_group.html");
 static IMPORT_USERS_TEMPLATE: &str = include_str!("html/import_users.html");
 static IMPORT_MAPS_TEMPLATE: &str = include_str!("html/import_maps.html");
 
@@ -138,6 +146,33 @@ pub async fn group_details(
     let context = GroupDetailsContext {
         data: group_details,
         users: group_users,
+    };
+    let html_response = tt.render("group_details", &context).unwrap_or_else(|e| {
+        eprintln!("Error rendering group details: {}", e);
+        "An unknown error occured, please refresh the page or try again in a few minutes"
+            .to_string()
+    });
+    Html::from(html_response)
+}
+
+pub async fn link_user_group(
+    State(app_state): State<AppState>,
+    Path(id): Path<u32>,
+) -> Html<std::string::String> {
+    let group_details = app_state.db.get_group_details(id).await.unwrap();
+    let cong_id = group_details.cong;
+    let users = app_state
+        .db
+        .get_users_by_congregation(cong_id)
+        .await
+        .unwrap();
+    let mut tt = TinyTemplate::new();
+    tt.add_template("group_details", LINK_USER_GROUP).unwrap();
+
+    let context = GroupLinkDetailsContext {
+        id,
+        data: group_details,
+        users,
     };
     let html_response = tt.render("group_details", &context).unwrap_or_else(|e| {
         eprintln!("Error rendering group details: {}", e);
