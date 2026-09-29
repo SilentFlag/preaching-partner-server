@@ -58,7 +58,10 @@ async fn main() {
     };
 
     let app = Router::new()
+        // Root
         .route("/", get(webpage::root))
+        // CSS
+        .route("/style.css", get(webpage::style))
         // Congregations
         .route("/congregation/new", get(webpage::add_congregation))
         .route("/congregation/new", post(services::add_congregation))

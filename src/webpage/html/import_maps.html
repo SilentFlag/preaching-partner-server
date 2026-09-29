@@ -2,15 +2,27 @@
 <html>
     <head>
         <title>Import Maps | Preaching Partner Server</title>
+        <link rel="stylesheet" type="text/css" href="/style.css">
     </head>
     <body>
-        <h1>Import Maps</h1>
-        <a href="/">Home</a>
-        <p>Use this page to import maps into the Preaching Partner Server.</p>
-        <form action="/maps/import/{id}" method="post" enctype="multipart/form-data">
-            <label for="file">Select a CSV file to import:</label>
-            <input type="file" id="file" name="file" accept=".csv" required>
-            <button type="submit">Import</button>
-        </form>
+        <nav>
+            <a href="/congregation/details/{id}">&larr; Back</a>
+            <span>Preaching Partner Admin Dashboard</span>
+        </nav>
+        
+        <section class="title-box">
+            <h1>Import Maps</h1>
+        </section>
+        
+        <section class="form">
+            <form action="/maps/import/{id}" method="post" enctype="multipart/form-data">
+                <span>
+                    <label for="file">Select a CSV file to import:</label>
+                    <input type="file" id="file" name="file" accept=".csv" required>
+                </span>
+                <button type="submit">Import</button>
+            </form>
+        </section>
+        
     </body>
 </html>

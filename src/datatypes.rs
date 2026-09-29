@@ -120,6 +120,14 @@ pub struct GroupDetails {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GroupUserDetails {
+    pub id: u32,
+    pub name: String,
+    pub role: u32,
+    pub role_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserPublicDetails {
     pub id: u32,
     pub name: String,

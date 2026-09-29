@@ -2,16 +2,29 @@
 <html>
     <head>
         <title>Create Group | Preaching Partner Server</title>
+        <link rel="stylesheet" type="text/css" href="/style.css">
     </head>
     <body>
-        <h1>Create Group</h1>
-        <a href="/">Home</a>
-        <p>Use this page to create a new group in the Preaching Partner Server.</p>
-        <form action="/groups/new/{id}" method="post" enctype="multipart/form-data">
-            <label for="name">Group Name:</label>
-            <!-- TODO: add elder selection -->
-            <input type="text" id="name" name="name" required>
-            <button type="submit">Create</button>
-        </form>
+        <nav>
+            <a href="/congregation/details/{id}">&larr; Back</a>
+            <span>Preaching Partner Admin Dashboard</span>
+        </nav>
+        
+        <section class="title-box">
+            <h1>Create Group</h1>
+        </section>
+
+        <hr>
+
+        <section class="form">
+            <form action="/groups/new/{id}" method="post" enctype="multipart/form-data">
+                <span>
+                    <label for="name">Group Name:</label>
+                    <input type="text" id="name" name="name" required>
+                </span>
+                <!-- TODO: add elder selection -->
+                <button type="submit">Create Group</button>
+            </form>
+        </section>
     </body>
 </html>

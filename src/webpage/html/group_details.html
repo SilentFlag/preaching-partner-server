@@ -2,22 +2,50 @@
 <html>
 <head>
     <title>Group Details | Preaching Partner Server</title>
+    <link rel="stylesheet" type="text/css" href="/style.css">
 </head>
 <body>
-    <h1>{data.name}</h1>
-    <a href="/">Back to Home</a>
-    <h2>Details</h2>
-    <hr>
-
-    <section>
-        thing
+    <nav>
+        <a href="/congregation/details/{data.cong}">&larr; Back</a>
+        <span>Preaching Partner Admin Dashboard</span>
+    </nav>
+    <section class="title-box">
+        <h1>{data.name}</h1>
     </section>
 
     <hr>
 
-    <h2>Users</h2>
-    <a href="#">Add User</a>
+    <section class="side-margin">
+        <h2>Users</h2>
+        <!-- TODO: Ability to add users to groups -->
+        <a href="#">Add User</a> 
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{for row in users}}
+                    <tr>
+                        <td>{row.name}</td>
+                        <td>
+                            {row.role_name}
+                        </td>
+                    </tr>
+                {{ endfor }}
+            </tbody>
+        </table>
+    </section>
+
     <hr>
+
+    <section class="side-margin">
+        <h2>Assigned Maps</h2>
+        <p>No maps assigned to this group.</p>
+        <!-- TODO: Show maps assigned to group -->
+    </section>
 
 
 </body>

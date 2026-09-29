@@ -2,24 +2,25 @@
 <html>
 <head>
     <title>Preaching Partner Admin Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="/style.css">
 </head>
 <body>
-    <h1>Preaching Partner Admin Dashboard</h1>
-    <p>Welcome to your Preaching Partner admin dashboard!</p>
+    <section class="title-box">
+        <h1>Preaching Partner Admin Dashboard</h1>
+    </section>
+    
     <hr>
 
-    <section>
-        <h2>Congregations</h2>
-        <a href="/congregation/new">Create Congregation</a>
-        <div class="cong-box">
+    <section class="select">
+        <a class="create-selection" href="/congregation/new">Create Congregation</a>
+        <div class="select-box">
             {{for row in table_data}}
-                <a class="cong" href="/congregation/details/{row.cong_id}">
-                    <p class="cong-name">{row.cong_name}</p>
+                <a class="select-item" href="/congregation/details/{row.cong_id}">
+                    <p class="">{row.cong_name}</p>
                 </a>
             {{ endfor }}
         </div>
     </section>
 
-    <hr>
 </body>
 </html>

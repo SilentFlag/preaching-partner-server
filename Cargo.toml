@@ -10,6 +10,7 @@ tokio = { version = "1", features = ["full", "sync"] }
 tokio-tungstenite = "0.20"
 futures-util = "0.3"
 axum = {version = "0.8.9", features = ['ws', 'multipart', 'macros']}
+axum-extra = "0.12.6"
 
 # Encryption
 tokio-rustls = "0.26.4"

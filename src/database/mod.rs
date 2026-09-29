@@ -1,7 +1,7 @@
 // use argon2::password_hash;
 use crate::datatypes::{
-    AddressDetails, AddressError, CategoryDetails, CongDetails, DbError, GroupDetails, MapDetails,
-    StreetDetails, UserDetails, UserPublicDetails,
+    AddressDetails, AddressError, CategoryDetails, CongDetails, DbError, GroupDetails,
+    GroupUserDetails, MapDetails, StreetDetails, UserDetails, UserPublicDetails,
 };
 use blake2::{Blake2b512, Digest};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions, sqlite::SqliteRow};
@@ -603,6 +603,34 @@ impl MyDatabase {
         Ok(group)
     }
 
+    // Get all users associated with a group
+    pub async fn get_group_users(&self, group_id: u32) -> Result<Vec<GroupUserDetails>, DbError> {
+        let query = sqlx::query("SELECT user_group_pair.user_id AS id, user_group_pair.role AS role, users.firstname AS firstname, users.lastname AS lastname FROM user_group_pair INNER JOIN users ON users.id=user_group_pair.user_id WHERE group_id = ?").bind(group_id);
+
+        let rows_result = query.fetch_all(&self.data).await;
+
+        let mut users: Vec<GroupUserDetails> = vec![];
+
+        match rows_result {
+            Ok(rows) => {
+                for row in rows {
+                    let user_details = get_group_user_details(row);
+                    match user_details {
+                        Ok(details) => {
+                            users.push(details);
+                        }
+                        Err(error) => return Err(DbError::InvalidRow(error)),
+                    }
+                }
+            }
+            Err(error) => {
+                return Err(DbError::QueryFailure(error));
+            }
+        }
+
+        Ok(users)
+    }
+
     // Get all groups for a user
     pub async fn get_groups_by_congregation(
         &self,
@@ -930,6 +958,27 @@ fn get_all_user_details(row: SqliteRow) -> Result<UserDetails, sqlx::Error> {
         deleted,
         groups: vec![],
         congregations: vec![],
+    })
+}
+
+/// TODO: Write docs
+fn get_group_user_details(row: SqliteRow) -> Result<GroupUserDetails, sqlx::Error> {
+    let id = row.try_get("id")?;
+    let firstname: String = row.try_get("firstname")?;
+    let lastname: String = row.try_get("lastname")?;
+    let role: u32 = row.try_get("role")?;
+    let role_name = match role {
+        0 => String::from("Publisher"),
+        1 => String::from("Elder"),
+        _ => {
+            format!("Unknown {}", role)
+        }
+    };
+    Ok(GroupUserDetails {
+        id,
+        name: format!("{} {}", firstname, lastname),
+        role,
+        role_name,
     })
 }
 

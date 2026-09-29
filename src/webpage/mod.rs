@@ -2,17 +2,22 @@ use axum::{
     extract::{Path, State},
     response::Html,
 };
-use preaching_partner_server::datatypes::{AppState, CongDetails, GroupDetails, UserDetails};
+use axum_extra::response::Css;
+use preaching_partner_server::datatypes::{
+    AppState, CongDetails, GroupDetails, GroupUserDetails, UserDetails,
+};
 use serde::Serialize;
 use tinytemplate::TinyTemplate;
 
 #[derive(Serialize)]
 struct CongContext {
+    styles: &'static str,
     table_data: Vec<CongDetails>,
 }
 
 #[derive(Serialize)]
 struct CongregationDetailsContext {
+    styles: &'static str,
     data: CongDetails,
     groups: Vec<GroupDetails>,
     users: Vec<UserDetails>,
@@ -21,10 +26,12 @@ struct CongregationDetailsContext {
 #[derive(Serialize)]
 struct GroupDetailsContext {
     data: GroupDetails,
+    users: Vec<GroupUserDetails>,
 }
 
 #[derive(Serialize)]
 struct IdContext {
+    styles: &'static str,
     id: u32,
 }
 
@@ -36,6 +43,8 @@ static GROUP_DETAILS_TEMPLATE: &str = include_str!("html/group_details.html");
 static IMPORT_USERS_TEMPLATE: &str = include_str!("html/import_users.html");
 static IMPORT_MAPS_TEMPLATE: &str = include_str!("html/import_maps.html");
 
+static ROOT_STYLES: &str = include_str!("css/root.css");
+
 /// TODO: handle errors, maybe with error page
 pub async fn root(State(app_state): State<AppState>) -> Html<std::string::String> {
     let congregations = app_state.db.get_all_congregations().await.unwrap();
@@ -43,6 +52,7 @@ pub async fn root(State(app_state): State<AppState>) -> Html<std::string::String
     tt.add_template("root", ROOT_TEMPLATE).unwrap();
 
     let context = CongContext {
+        styles: ROOT_STYLES,
         table_data: congregations,
     };
 
@@ -51,6 +61,11 @@ pub async fn root(State(app_state): State<AppState>) -> Html<std::string::String
             .to_string()
     });
     Html::from(html_response)
+}
+
+/// TODO: handle errors, maybe with error page
+pub async fn style() -> Css<std::string::String> {
+    Css::from(ROOT_STYLES.to_string())
 }
 
 // CONGREGATIONS
@@ -79,6 +94,7 @@ pub async fn congregation_details(
         .unwrap();
 
     let context = CongregationDetailsContext {
+        styles: ROOT_STYLES,
         data: cong_details,
         groups,
         users,
@@ -98,7 +114,10 @@ pub async fn congregation_details(
 pub async fn add_group(Path(id): Path<u32>) -> Html<std::string::String> {
     let mut tt = TinyTemplate::new();
     tt.add_template("add_group", ADD_GROUPS_TEMPLATE).unwrap();
-    let context = IdContext { id };
+    let context = IdContext {
+        id,
+        styles: ROOT_STYLES,
+    };
     let html_response = tt.render("add_group", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()
@@ -111,12 +130,14 @@ pub async fn group_details(
     Path(id): Path<u32>,
 ) -> Html<std::string::String> {
     let group_details = app_state.db.get_group_details(id).await.unwrap();
+    let group_users = app_state.db.get_group_users(id).await.unwrap();
     let mut tt = TinyTemplate::new();
     tt.add_template("group_details", GROUP_DETAILS_TEMPLATE)
         .unwrap();
 
     let context = GroupDetailsContext {
         data: group_details,
+        users: group_users,
     };
     let html_response = tt.render("group_details", &context).unwrap_or_else(|e| {
         eprintln!("Error rendering group details: {}", e);
@@ -132,7 +153,10 @@ pub async fn import_users(Path(id): Path<u32>) -> Html<std::string::String> {
     let mut tt = TinyTemplate::new();
     tt.add_template("import_users", IMPORT_USERS_TEMPLATE)
         .unwrap();
-    let context = IdContext { id };
+    let context = IdContext {
+        id,
+        styles: ROOT_STYLES,
+    };
     let html_response = tt.render("import_users", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()
@@ -146,7 +170,10 @@ pub async fn import_maps(Path(id): Path<u32>) -> Html<std::string::String> {
     let mut tt = TinyTemplate::new();
     tt.add_template("import_maps", IMPORT_MAPS_TEMPLATE)
         .unwrap();
-    let context = IdContext { id };
+    let context = IdContext {
+        id,
+        styles: ROOT_STYLES,
+    };
     let html_response = tt.render("import_maps", &context).unwrap_or_else(|_| {
         "An unknown error occured, please refresh the page or try again in a few minutes"
             .to_string()

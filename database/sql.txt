@@ -11,7 +11,7 @@ CREATE TABLE users(id INTEGER PRIMARY KEY, firstname VARCHAR(255) NOT NULL, last
 
 CREATE TABLE user_cong_pair(user_id INTEGER, congregation_id INTEGER, deleted BOOL, updated INTEGER, CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
-CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL NOT NULL, updated INTEGER, CONSTRAINT fk_group_id FOREIGN KEY (group_id) REFERENCES service_group(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
+CREATE TABLE user_group_pair(user_id INTEGER, group_id INTEGER, deleted BOOL NOT NULL, updated INTEGER, role INTEGER, CONSTRAINT fk_group_id FOREIGN KEY (group_id) REFERENCES service_group(id), CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id));
 
 CREATE TABLE maps(id INTEGER PRIMARY KEY, name VARCHAR(255), assignee INT, assigner INT, category INT NOT NULL, file_name VARCHAR(255), updated INTEGER, congregation_id INTEGER, deleted BOOL, CONSTRAINT fk_category FOREIGN KEY (category) REFERENCES categories(id), CONSTRAINT fk_congregation FOREIGN KEY (congregation_id) REFERENCES congregation(id));
 
@@ -46,12 +46,12 @@ INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(4,
 INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(5, 1, false, 0);
 INSERT INTO user_cong_pair(user_id, congregation_id, deleted, updated) VALUES(6, 1, false, 0);
 
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(1,2,false,0);
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(2,1,false,0);
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(3,2,false,0);
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(4,2,false,0);
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(5,1,false,0);
-INSERT INTO user_group_pair(user_id, group_id, deleted, updated) VALUES(6,1,false,0);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(1,2,false,0, 1);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(2,1,false,0, 1);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(3,2,false,0, 0);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(4,2,false,0, 0);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(5,1,false,0, 0);
+INSERT INTO user_group_pair(user_id, group_id, deleted, updated, role) VALUES(6,1,false,0, 0);
 
 INSERT INTO maps(name, assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES('t01', NULL, NULL, 1, 't01.png', 0, 1, false);
 INSERT INTO maps(name, assignee, assigner, category, file_name, updated, congregation_id, deleted) VALUES('t02', NULL, NULL, 1, 't02.png', 0, 1, false);

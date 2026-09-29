@@ -2,20 +2,27 @@
 <html>
 <head>
     <title>Congregation Details | Preaching Partner Server</title>
+    <link rel="stylesheet" type="text/css" href="/style.css">
 </head>
 <body>
-    <h1>{data.cong_name} Congregation</h1>
-    <a href="/">Back to Home</a>
-    <h2>Details</h2>
+    <nav>
+        <a href="/">&larr; Back</a>
+        <span>Preaching Partner Admin Dashboard</span>
+    </nav>
+
+    <section class="title-box">
+        <h1>{data.cong_name} Congregation</h1>
+    </section>
+    
     <hr>
 
-    <section>
-        <h2>Groups</h2>
-        <a href="/groups/new/{data.cong_id}">Create Group</a>
-        <div class="group-box">
+    <section class="select side-margin">
+        <h2 class="select-title">Groups</h2>
+        <a href="/groups/new/{data.cong_id}" class="create-selection">Create Group</a>
+        <div class="select-box">
             {{for row in groups}}
-                <a class="group" href="/group/details/{row.id}">
-                    <p class="group-name">{row.name}</p>
+                <a class="select-item" href="/group/details/{row.id}">
+                    <p class="">{row.name}</p>
                 </a>
             {{ endfor }}
         </div>
@@ -23,16 +30,17 @@
 
     <hr>
 
-    <section>
-        <h2>Maps</h2>
-        <a href="/maps/import/{data.cong_id}">Import Maps</a>
+    <section class="side-margin select">
+        <h2 class="select-title">Maps</h2>
+        <a href="/maps/import/{data.cong_id}" class="create-selection">Import Maps</a>
     </section>
 
     <hr>
 
-    <section>
-        <h2>Users</h2>
-        <a href="/users/import/{data.cong_id}">Add Users</a>
+    <section class="side-margin select">
+        <h2 class="select-title">Users</h2>
+        <!-- TODO: A way to add users without a csv file -->
+        <a href="/users/import/{data.cong_id}" class="create-selection">Import Users</a>
         <table>
             <tr>
                 <th>Firstname(s)</th>
